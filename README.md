@@ -1,3 +1,60 @@
+> Licensed under the MIT License. Please retain the copyright and license when you redistribute or modify.  
+> 使用 MIT 协议；修改与转发时请保留版权与许可条款，并注明原作者 **Sam Zebrado**。
+
+# 弹幕日志：打标签 + 汇总查看  
+*Danmu Log: Tagging & Summary (Local-only | By-Date | i18n | Weekday | Versions + Tail-Delete)*
+
+一个纯前端、单文件 HTML 的学习/工作时间标注与按日汇总工具，数据只存浏览器本地。  
+*A single-file, front-end–only tool to label and summarize study/work minutes by day; all data stays in your browser.*
+
+---
+
+## ✨ 特色功能 / Features
+- 纯本地存储（LocalStorage），隐私友好，不出浏览器。  
+  *Local-only (LocalStorage), privacy friendly—never leaves your browser.*
+- 可配置“标蓝/标绿”关键词与分钟表达式，支持 `5+5+1.5` 这类相加写法。  
+  *Configurable blue/green keywords & minute patterns; supports sums like `5+5+1.5`.*
+- 仅识别**行首** `HH:MM, 日期` 来确定当天，避免正文日期误判。  
+  *Only **line-start** timestamps `HH:MM, Date` are used—prevents false matches in body text.*
+- 左栏高亮命中/疑似并可点击打“一级/二级”标签；右栏一键汇总。  
+  *Left pane highlights hit/suspects for tagging L1/L2; right pane summarizes in one click.*
+- 汇总默认“按日期 + 去重复 + 二级换行 + 每日总时间置底”，并显示星期（随语言）。  
+  *Summary defaults to “by date + unique + L2 per line + day total at bottom”, with weekday labels (CN/EN).*
+- 关键词可视化编辑即刻生效；中英一键切换；内置帮助与示例。  
+  *Visual keyword editor (instant apply); CN/EN toggle; built-in help & sample.*
+- 手动快照（保留 5 个）+ 自动快照（保留 2 个），支持恢复/导出 JSON。  
+  *Manual snapshots (keep 5) + auto-saves (keep 2), with restore/export to JSON.*
+- 追加粘贴不丢标签；支持删除末尾 N 行（带预览），自动清理孤儿标签。  
+  *Append-paste preserves labels; delete last N lines (preview) with orphan-label pruning.*
+
+---
+
+## 🚀 快速开始 / Quick Start
+1. 用浏览器直接打开本 HTML 文件。  
+   *Open the HTML file in your browser.*
+2. 点击“粘贴日志”或“追加粘贴”→ 粘贴你的弹幕式日志 → “解析”。  
+   *Click “Paste” or “Append” → paste your log → “Parse”.*
+3. 左栏点击蓝/疑似条目，在右侧填写“一级/二级”→ “打标签”。  
+   *Click blue/suspect items, fill L1/L2 on the right → “Tag”.*
+4. 点击“汇总”，默认按“日期去重换行”，底部显示“当日总时间”。  
+   *Click “Summarize”; by default it’s per-date unique lines with day total at the bottom.*
+5. 需要时，点“定义关键词”微调规则；点“语言”切换中/英。  
+   *Use “Define Keywords” to tweak rules; “Language” toggles CN/EN.*
+
+---
+
+## 🔐 数据与隐私 / Data & Privacy
+所有数据保存在浏览器 LocalStorage，键名如下：  
+*All data lives in LocalStorage under these keys:*
+annot_raw_text
+annot_c1_suggestions
+annot_c2_suggestions
+annot_label_map
+annot_cfg
+annot_lang
+annot_versions
+annot_versions_auto
+
 不联网、不上传；可随时导出快照 JSON 备份。  
 *No network, no upload; export snapshots as JSON anytime.*
 
