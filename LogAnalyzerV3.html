@@ -1,0 +1,936 @@
+<!--
+SPDX-License-Identifier: MIT
+Copyright (c) 2025 Sam Zebrado
+-->
+
+<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>弹幕日志：打标签 + 汇总查看（本地版｜按日期｜多语言｜含星期｜版本 + 删除末行）</title>
+<style>
+html,body{height:100%;margin:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:#fff}
+.wrap{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;height:100vh;padding:16px;box-sizing:border-box}
+.panel{border:1px solid #e6e6e6;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+.head{padding:10px 14px;border-bottom:1px solid #eee;background:#fafafa;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.body{padding:12px 14px;overflow:auto}
+.legend{margin:8px 0 12px;font-size:13px;color:#555}
+.blue{background:#cfe8ff;border-radius:3px;padding:0 2px}
+.green{background:#d8f5d0;border-radius:3px;padding:0 2px}
+.cyan{background:#d5f8ff;border-radius:3px;padding:0 2px}
+.content{white-space:pre-wrap;word-break:break-word;font-size:15px;line-height:1.65}
+.entry{display:block;margin:8px 0;padding:2px 4px;border-left:4px solid transparent;cursor:pointer}
+.entry.blue{border-left-color:#5aa0ff;background:#f1f7ff}
+.entry.suspect{border-left-color:#6bd4f7;background:#f4fcff}
+.entry.selected{outline:2px solid #5aa0ff}
+.line{margin:2px 0}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+input[type=text],input[type=number]{padding:6px 8px;border:1px solid #ddd;border-radius:8px;outline:none;min-width:120px}
+input[type=text]:focus{border-color:#5aa0ff;box-shadow:0 0 0 3px rgba(90,160,255,.15)}
+select{padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff}
+button{padding:8px 12px;border:1px solid #333;border-radius:10px;background:#111;color:#fff;cursor:pointer}
+button.secondary{background:#f6f7f8;color:#111;border-color:#ddd}
+button:disabled{opacity:.5;cursor:not-allowed}
+label.cb{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#333;padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff}
+.muted{color:#666;font-size:12px}
+.badge{display:inline-block;padding:2px 6px;border-radius:999px;background:#eef;border:1px solid #ccd;color:#335;font-size:12px;margin-left:6px}
+.list{font-size:14px;line-height:1.6}
+.sum{background:#fbfbfb;border:1px dashed #ddd;padding:10px;border-radius:8px;margin-top:8px}
+.kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;background:#f2f2f2;border:1px solid #e5e5e5;padding:1px 6px;border-radius:6px}
+.dateSec{margin:12px 0 14px}
+.dateHead{font-weight:700;margin:6px 0 4px}
+.dateHead .mini{font-weight:400;color:#666;margin-left:6px}
+.dateTotal{margin:6px 0 0}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:50}
+.hidden{display:none}
+.dialog{width:min(960px,94vw);max-height:84vh;background:#fff;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column}
+.dialog .title{padding:12px 16px;border-bottom:1px solid #eee;font-weight:600}
+.dialog .cont{padding:12px 16px;overflow:auto}
+.dialog .actions{padding:12px 16px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end}
+.dialog h3{margin:8px 0 6px}
+.dialog p{margin:4px 0 10px;color:#555}
+.dialog textarea{width:100%;height:120px;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;line-height:1.6;resize:vertical}
+.dialog .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+hr.sep{border:none;border-top:1px dashed #e5e5e5;margin:8px 0}
+.histItem{border:1px solid #eee;border-radius:10px;padding:8px;margin:8px 0;background:#fafafa}
+.histHead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.histBtns{display:flex;gap:6px}
+.small{font-size:12px;color:#666}
+pre.preview{background:#f7f7f7;border:1px solid #eee;padding:8px;border-radius:8px;white-space:pre-wrap;max-height:40vh;overflow:auto}
+</style>
+
+<div class="wrap">
+  <div class="panel">
+    <div class="head">
+      <span data-i18n="leftTitle">左栏｜高亮日志（命中/疑似会单独成行，可点击）</span>
+      <button id="pasteBtn" class="secondary" data-i18n="btnPaste">粘贴日志</button>
+      <button id="appendBtn" class="secondary" data-i18n="btnAppend">追加粘贴</button>
+      <button id="reparseBtn" class="secondary" data-i18n="btnReparse">重新解析</button>
+      <button id="delBtn" class="secondary" data-i18n="btnDelete">删除末行</button>
+    </div>
+    <div class="body">
+      <div class="legend" id="legend"></div>
+      <div id="content" class="content"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="head">
+      <span data-i18n="rightTitle">右栏｜打标签与汇总</span>
+      <button id="kwBtn" class="secondary" data-i18n="btnKw">定义关键词</button>
+      <button id="saveSnapBtn" class="secondary" data-i18n="btnSave">保存标签</button>
+      <button id="histBtn" class="secondary" data-i18n="btnHist">历史</button>
+      <button id="langBtn" class="secondary" data-i18n="btnLang">语言</button>
+      <button id="helpBtn" class="secondary" data-i18n="btnHelp">帮助</button>
+    </div>
+    <div class="body">
+      <div class="tools">
+        <input id="c1" list="dl1" type="text" data-i18n-ph="phC1" placeholder="一级标题（点击可选历史）">
+        <datalist id="dl1"></datalist>
+        <input id="c2" list="dl2" type="text" data-i18n-ph="phC2" placeholder="二级标题（点击可选历史）">
+        <datalist id="dl2"></datalist>
+        <input id="overMin" type="number" step="0.01" data-i18n-ph="phOver" placeholder="覆盖分钟（可选）">
+        <label class="cb"><input id="byDate" type="checkbox" checked> <span data-i18n="byDate">按日期分割</span></label>
+        <label class="cb"><span data-i18n="show">显示：</span>
+          <select id="c2Mode">
+            <option value="uniq" selected data-i18n="optUniq">仅去重复（换行列出）</option>
+            <option value="dup" data-i18n="optDup">仅带重复（加号连接）</option>
+            <option value="both" data-i18n="optBoth">带重复 + 去重复</option>
+          </select>
+        </label>
+        <button id="tagBtn" disabled data-i18n="btnTag">打标签</button>
+        <button id="sumBtn" class="secondary" data-i18n="btnSum">汇总</button>
+        <button id="clearBtn" class="secondary" data-i18n="btnClear">清空</button>
+      </div>
+      <div class="row muted"><span data-i18n="curEntry">当前条目：</span><span id="curText"></span></div>
+      <div class="row muted"><span data-i18n="curMeta">元信息：</span><span id="curMeta"></span></div>
+      <hr class="sep">
+      <div id="sumArea" class="list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 粘贴弹窗 -->
+<div id="pasteModal" class="modal hidden">
+  <div class="dialog">
+    <div class="title" id="pasteTitle">粘贴你的弹幕日志</div>
+    <div class="cont">
+      <textarea id="pasteInput" data-i18n-ph="phPaste" placeholder="把整段日志粘贴到这里…"></textarea>
+    </div>
+    <div class="actions">
+      <button id="cancelPaste" class="secondary" data-i18n="cancel">取消</button>
+      <button id="parseBtn" data-i18n="parse">解析</button>
+    </div>
+  </div>
+</div>
+
+<!-- 删除末行弹窗 -->
+<div id="delModal" class="modal hidden">
+  <div class="dialog">
+    <div class="title" data-i18n="delTitle">删除末尾行</div>
+    <div class="cont">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <label class="cb" style="border:none;padding:0">
+          <span data-i18n="delHowMany">删除行数</span>：
+          <input id="delCount" type="number" min="1" value="1" style="width:100px">
+        </label>
+        <span class="small" id="delInfo"></span>
+      </div>
+      <div style="margin-top:8px" class="small" data-i18n="delPreviewHint">将删除以下行（预览）：</div>
+      <pre id="delPreview" class="preview"></pre>
+    </div>
+    <div class="actions">
+      <button id="delCancel" class="secondary" data-i18n="cancel">取消</button>
+      <button id="delDo" data-i18n="delDo">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- 关键词定义弹窗 -->
+<div id="kwModal" class="modal hidden">
+  <div class="dialog">
+    <div class="title" data-i18n="kwTitle">定义关键词与分钟表达式</div>
+    <div class="cont">
+      <h3 data-i18n="kwBlueH3">一、标蓝规则（决定命中条目与分钟解析）</h3>
+      <p data-i18n="kwBlueP">一行中同时出现【左侧关键字】与【分钟表达式 + 后缀】，即视为命中"标蓝"条目并解析分钟。</p>
+      <div class="grid">
+        <div>
+          <b data-i18n="kwBlueTags">左侧关键字（每行一个）</b>
+          <textarea id="kw_blue_tags" placeholder="【学习时间】&#10;【工作时间】"></textarea>
+        </div>
+        <div>
+          <b data-i18n="kwBlueExpr">分钟表达式（正则，不含后缀）</b>
+          <textarea id="kw_blue_expr" placeholder="[0-9]+(?:\\.[0-9]+)?(?:\\s*\\+\\s*[0-9]+(?:\\.[0-9]+)?)*"></textarea>
+          <div style="margin-top:6px">
+            <span data-i18n="kwBlueSuffix">后缀：</span>
+            <input id="kw_blue_suffix" type="text" style="min-width:160px" placeholder="分钟">
+          </div>
+        </div>
+      </div>
+      <hr class="sep">
+      <h3 data-i18n="kwGreenH3">二、标绿规则（普通关键词高亮）</h3>
+      <div class="grid">
+        <div>
+          <b data-i18n="kwGreenKw">关键字（每行一个）</b>
+          <textarea id="kw_green_words" placeholder="学习时间&#10;工作时间"></textarea>
+        </div>
+        <div>
+          <label class="cb" style="margin-top:8px">
+            <input id="kw_green_only_when_no_blue" type="checkbox">
+            <span data-i18n="kwGreenChk">仅在未命中"标蓝"时才标绿（推荐）</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="kwReset" class="secondary" data-i18n="reset">恢复默认</button>
+      <button id="kwCancel" class="secondary" data-i18n="cancel">取消</button>
+      <button id="kwSave" data-i18n="saveApply">保存并应用</button>
+    </div>
+  </div>
+</div>
+
+<!-- 历史 / 版本回溯 -->
+<div id="histModal" class="modal hidden">
+  <div class="dialog">
+    <div class="title" data-i18n="histTitle">历史版本（最近 5 个）</div>
+    <div class="cont" id="histBody"></div>
+    <div class="actions">
+      <button id="closeHist" data-i18n="close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 帮助弹窗 -->
+<div id="helpModal" class="modal hidden">
+  <div class="dialog">
+    <div class="title" data-i18n="helpTitle">帮助 / 示例</div>
+    <div class="cont" id="helpBody"></div>
+    <div class="actions">
+      <button id="loadSample" class="secondary" data-i18n="loadSample">载入示例日志</button>
+      <button id="closeHelp" data-i18n="close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== LocalStorage Keys ===== */
+const RAW_KEY ='annot_raw_text';
+const SUG1_KEY='annot_c1_suggestions';
+const SUG2_KEY='annot_c2_suggestions';
+const MAP_KEY ='annot_label_map';
+const CFG_KEY ='annot_cfg';
+const LANG_KEY='annot_lang';
+const VER_KEY ='annot_versions';
+const VER_AUTO_KEY='annot_versions_auto';
+
+/* ===== i18n ===== */
+const i18n = {
+  zh: {
+    leftTitle:'左栏｜高亮日志（命中/疑似会单独成行，可点击）',
+    rightTitle:'右栏｜打标签与汇总',
+    legend:'高亮：<span class="blue">【…时间】…</span>｜<span class="green">学习/工作时间</span>｜<span class="cyan">NN…分钟</span> · 蓝/疑似条目可点选后打"一级/二级"标签，再点「汇总」。',
+    btnPaste:'粘贴日志', btnAppend:'追加粘贴', btnReparse:'重新解析', btnDelete:'删除末行',
+    btnKw:'定义关键词', btnLang:'语言', btnHelp:'帮助',
+    btnSave:'保存标签', btnHist:'历史',
+    phC1:'一级标题（点击可选历史）', phC2:'二级标题（点击可选历史）', phOver:'覆盖分钟（可选）',
+    byDate:'按日期分割', show:'显示：',
+    optUniq:'仅去重复（换行列出）', optDup:'仅带重复（加号连接）', optBoth:'带重复 + 去重复',
+    btnTag:'打标签', btnSum:'汇总', btnClear:'清空',
+    curEntry:'当前条目：', curMeta:'元信息：',
+    pasteTitle:'粘贴你的弹幕日志', pasteTitleAppend:'追加粘贴到现有日志', phPaste:'把整段日志粘贴到这里…',
+    cancel:'取消', parse:'解析',
+    kwTitle:'定义关键词与分钟表达式',
+    kwBlueH3:'一、标蓝规则（决定命中条目与分钟解析）',
+    kwBlueP:'一行中同时出现【左侧关键字】与【分钟表达式 + 后缀】，即视为命中"标蓝"条目并解析分钟。',
+    kwBlueTags:'左侧关键字（每行一个）', kwBlueExpr:'分钟表达式（正则，不含后缀）', kwBlueSuffix:'后缀：',
+    kwGreenH3:'二、标绿规则（普通关键词高亮）', kwGreenKw:'关键字（每行一个）', kwGreenChk:'仅在未命中"标蓝"时才标绿（推荐）',
+    reset:'恢复默认', saveApply:'保存并应用',
+    helpTitle:'帮助 / 示例', loadSample:'载入示例日志', close:'关闭',
+    minutes:'分钟', dateUnk:'未识别日期', dateNote:'(仅识别行首时间标记)',
+    sumDup:'二级（带重复）：', sumUniqHdr:'二级（去重复）：',
+    total:'总分钟：', dayTotal:'当日总时间：',
+    confirmReparse:'重新解析会清空已打的标签，继续吗？',
+    confirmClear:'仅清空标签（annot_label_map），原文与历史标题保留。确定？',
+    alertNeedTitles:'请填写一级与二级标题',
+    alertOverNum:'覆盖分钟需为数字',
+    metaDate:'日期', metaSus:'疑似', metaMin:'分钟',
+    histTitle:'历史版本',
+    histEmpty:'暂无手动快照。用"保存标签"保存一个快照。',
+    histSnap:'快照',
+    histCounts:'日志行/标签条目/一级标题数/二级标题数',
+    btnRestore:'恢复此版本', btnExport:'导出 JSON',
+    toastSaved:'已保存当前版本到历史（最多保留 5 个）。',
+    histAutoTitle:'自动保存（最近 2 个）',
+    histManualTitle:'手动保存（最近 5 个）',
+    // 删除末行
+    delTitle:'删除末尾行',
+    delHowMany:'删除行数',
+    delPreviewHint:'将删除以下行（预览）：',
+    delDo:'删除',
+    delInfo:'当前日志共 {n} 行',
+    delConfirm:'确认删除最后 {n} 行？',
+    delNone:'当前没有可删除的日志。'
+  },
+  en: {
+    leftTitle:'Left｜Highlighted log (hits/suspects break into lines, clickable)',
+    rightTitle:'Right｜Tag & Summarize',
+    legend:'Highlight: <span class="blue">[…time] …</span> | <span class="green">Study/Work time</span> | <span class="cyan">NN… minutes</span> · Click blue/suspect rows to assign L1/L2, then "Summarize".',
+    btnPaste:'Paste', btnAppend:'Append', btnReparse:'Reparse', btnDelete:'Delete tail',
+    btnKw:'Define Keywords', btnLang:'Language', btnHelp:'Help',
+    btnSave:'Save Tags', btnHist:'History',
+    phC1:'Level-1 title (click for history)', phC2:'Level-2 title (click for history)', phOver:'Override minutes (optional)',
+    byDate:'Split by date', show:'Show:',
+    optUniq:'Unique only (one per line)', optDup:'With duplicates (+ joined)', optBoth:'Both',
+    btnTag:'Tag', btnSum:'Summarize', btnClear:'Clear',
+    curEntry:'Current:', curMeta:'Meta:',
+    pasteTitle:'Paste your log', pasteTitleAppend:'Append to existing log', phPaste:'Paste the whole log here…',
+    cancel:'Cancel', parse:'Parse',
+    kwTitle:'Define keywords & minute pattern',
+    kwBlueH3:'A) Blue rules (hit & minute parsing)',
+    kwBlueP:'A line is "blue-hit" when BOTH a left keyword and a [minute-expression + suffix] appear.',
+    kwBlueTags:'Left keywords (one per line)', kwBlueExpr:'Minute expression (regex, no suffix)', kwBlueSuffix:'Suffix:',
+    kwGreenH3:'B) Green rules (plain keywords highlight)', kwGreenKw:'Keywords (one per line)', kwGreenChk:'Only when not blue-hit (recommended)',
+    reset:'Reset', saveApply:'Save & Apply',
+    helpTitle:'Help / Sample', loadSample:'Load sample', close:'Close',
+    minutes:'minutes', dateUnk:'Unrecognized date', dateNote:'(only detects date at line start)',
+    sumDup:'Level-2 (with duplicates): ', sumUniqHdr:'Level-2 (unique): ',
+    total:'Group total:', dayTotal:'Day total:',
+    confirmReparse:'Reparse will clear existing labels. Continue?',
+    confirmClear:'Clear labels only (annot_label_map). Raw & history kept. Proceed?',
+    alertNeedTitles:'Please fill Level-1 and Level-2 titles',
+    alertOverNum:'Override minutes must be a number',
+    metaDate:'Date', metaSus:'suspect', metaMin:'minutes',
+    histTitle:'History',
+    histEmpty:'No manual snapshots yet. Use "Save Tags" to create one.',
+    histSnap:'Snapshot',
+    histCounts:'Raw lines / labeled entries / L1 count / L2 count',
+    btnRestore:'Restore', btnExport:'Export JSON',
+    toastSaved:'Current version saved (keeping last 5).',
+    histAutoTitle:'Auto-saved (last 2)',
+    histManualTitle:'Manual (last 5)',
+    // 删除末行
+    delTitle:'Delete tail lines',
+    delHowMany:'Lines to remove',
+    delPreviewHint:'These lines will be removed (preview):',
+    delDo:'Delete',
+    delInfo:'Current log has {n} lines',
+    delConfirm:'Delete the last {n} lines?',
+    delNone:'No log to delete.'
+  }
+};
+let lang = localStorage.getItem(LANG_KEY)||'zh';
+function t(k){ return (i18n[lang]&&i18n[lang][k])||k; }
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = t(el.getAttribute('data-i18n')); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
+  document.getElementById('legend').innerHTML = t('legend');
+  const pasteTitle = document.getElementById('pasteTitle');
+  if(pasteTitle){ pasteTitle.textContent = t(appendMode?'pasteTitleAppend':'pasteTitle'); }
+}
+
+/* ===== 默认配置 ===== */
+const defaultCfg = {
+  blue: { tags: ['【学习时间】','【工作时间】'], minuteExpr: '[0-9]+(?:\\.[0-9]+)?(?:\\s*\\+\\s*[0-9]+(?:\\.[0-9]+)?)*', suffix: '分钟' },
+  green:{ keywords: ['学习时间','工作时间'], onlyWhenNoBlue: true }
+};
+
+/* ===== 工具 ===== */
+function getLS(k,def){ try{ return JSON.parse(localStorage.getItem(k)||def); }catch(e){ return JSON.parse(def); } }
+function setLS(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+function fmt(n){ const v=Number(n||0); return Number.isInteger(v)?String(v):v.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1'); }
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escReg(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+function nowTs(){ return Date.now(); }
+function tsFmt(ts){ const d=new Date(ts); const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), da=String(d.getDate()).padStart(2,'0'); const hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0'); return `${y}-${m}-${da} ${hh}:${mm}`; }
+
+/* ===== 配置编译 ===== */
+let cfg = Object.assign({}, defaultCfg, getLS(CFG_KEY, 'null')||{});
+function saveCfg(){ setLS(CFG_KEY, cfg); compileCfg(); scheduleAutoSave('cfg_save'); }
+let reBlueLine=null, reBlueTags=null, reGreenKW=null, reBlueMinute=null, reMinuteGlobal=null;
+function compileCfg(){
+  const tagsAlt = (cfg.blue.tags||[]).map(escReg).join('|') || '(?!)';
+  const kwAlt   = (cfg.green.keywords||[]).map(escReg).join('|') || '(?!)';
+  const minutePart = `(${cfg.blue.minuteExpr})\\s*${escReg(cfg.blue.suffix||'分钟')}`;
+  reBlueLine     = new RegExp(`(?:${tagsAlt})[\\s\\S]*?${minutePart}`, 'i');
+  reBlueTags     = new RegExp(`(?:${tagsAlt})`, 'i');
+  reGreenKW      = new RegExp(`(?:${kwAlt})`, 'g');
+  reBlueMinute   = new RegExp(`${minutePart}`, 'i');
+  reMinuteGlobal = new RegExp(`${cfg.blue.minuteExpr}\\s*${escReg(cfg.blue.suffix||'分钟')}`, 'g');
+}
+compileCfg();
+
+/* ===== 建议、标签 ===== */
+const c1Sug = new Set(getLS(SUG1_KEY,'[]'));
+const c2Sug = new Set(getLS(SUG2_KEY,'[]'));
+let labelMap = getLS(MAP_KEY,'{}');
+function saveMap(){ setLS(MAP_KEY,labelMap); }
+
+/* ===== 日期识别（仅行首"时间, 日期"） ===== */
+const monMap={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,sept:9,oct:10,nov:11,dec:12};
+function pad(n){return String(n).padStart(2,'0');}
+function normYMD(y,m,d){ return `${y}-${pad(m)}-${pad(d)}`; }
+function findDateToken(line){
+  let m=line.match(/^\s*\d{1,2}:\d{2},\s*(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Sept|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2}),\s*(\d{4})/i);
+  if(m){ const mm=monMap[m[1].slice(0,3).toLowerCase()]; return normYMD(m[3],mm,m[2]); }
+  m=line.match(/^\s*\d{1,2}:\d{2},\s*(20\d{2})年(\d{1,2})月(\d{1,2})日/);
+  if(m){ return normYMD(m[1],m[2],m[3]); }
+  return null;
+}
+
+/* ===== 星期几（随语言） ===== */
+const weekdayZh=['周日','周一','周二','周三','周四','周五','周六'];
+const weekdayEn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function weekdayLabel(ymd){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  if(!m) return '';
+  const dt = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+  const idx = dt.getDay();
+  return (lang==='zh'?weekdayZh:weekdayEn)[idx] || '';
+}
+function fmtWeekParen(ymd){
+  const w = weekdayLabel(ymd);
+  if(!w) return '';
+  return lang==='zh' ? `（${w}）` : ` (${w})`;
+}
+
+/* ===== 分钟解析（蓝命中行） ===== */
+function parseMinutesFromBlue(text){
+  const mLine = text.match(reBlueLine);
+  if(mLine){
+    const m = mLine[0].match(reBlueMinute);
+    if(m){
+      const expr = (m[1]||'').split('+').map(s=>parseFloat(s)).filter(x=>!isNaN(x));
+      const min = expr.reduce((a,b)=>a+b,0);
+      return {min, exact:true};
+    }
+  }
+  return {min:0, exact:false};
+}
+
+/* ===== 左栏高亮 ===== */
+function hiInline(s, isBlueHitForThisLine=false){
+  let t=esc(s);
+  if(cfg.blue.tags && cfg.blue.tags.length){
+    const tagsAlt = cfg.blue.tags.map(escReg).join('|');
+    t = t.replace(new RegExp(`(${tagsAlt})`,'g'),'<span class="blue">$1</span>');
+  }
+  const doGreen = !(cfg.green.onlyWhenNoBlue && isBlueHitForThisLine);
+  if(doGreen && cfg.green.keywords && cfg.green.keywords.length){
+    try{
+      const kwAlt = cfg.green.keywords.map(escReg).join('|');
+      t = t.replace(new RegExp(`(?<!【)(${kwAlt})(?!】)`,'g'),'<span class="green">$1</span>');
+    }catch(e){
+      const kwAlt = cfg.green.keywords.map(escReg).join('|');
+      t = t.replace(new RegExp(`(${kwAlt})`,'g'),'<span class="green">$1</span>');
+    }
+  }
+  t = t.replace(reMinuteGlobal, m => `<span class="cyan">${m}</span>`);
+  return t;
+}
+
+/* ===== 左栏渲染 ===== */
+function render(raw){
+  const cont = document.getElementById('content');
+  cont.innerHTML='';
+  const lines = (raw||'').replace(/\r\n?/g,'\n').split('\n');
+  const entryEls=[];
+  let idx=0;
+  let currentDate=t('dateUnk');
+
+  lines.forEach(line=>{
+    const dateTok = findDateToken(line);
+    if(dateTok) currentDate = dateTok;
+
+    const hasBlue    = reBlueLine.test(line);
+    const hasKW      = reGreenKW.test(line);
+    const hasBracket = reBlueTags.test(line);
+    reGreenKW.lastIndex = 0;
+
+    if(hasBlue || (hasKW && !hasBracket)){
+      const div=document.createElement('div');
+      div.className='entry'+(hasBlue?' blue':' suspect');
+      div.innerHTML = hiInline(line, hasBlue);
+      div.dataset.id = 'e'+(++idx);
+      div.dataset.kind = /学习|study/i.test(line) ? '学习' : (/工作|work/i.test(line)? '工作':'未知');
+      const pm = hasBlue ? parseMinutesFromBlue(line) : {min:0, exact:false};
+      div.dataset.minutes = String(pm.min||0);
+      if(!pm.exact) div.classList.add('suspect');
+      div.dataset.date = currentDate;
+
+      const rec = labelMap[div.dataset.id];
+      if(rec){
+        const b=document.createElement('span'); b.className='badge';
+        b.textContent=rec.c1+' / '+rec.c2+(rec.overMin?(' · '+rec.overMin+'m'):'');
+        div.appendChild(b);
+      }
+      cont.appendChild(div);
+      entryEls.push(div);
+    }else{
+      const isBlueHit = reBlueLine.test(line);
+      const p=document.createElement('div'); p.className='line';
+      p.innerHTML=hiInline(line, isBlueHit);
+      cont.appendChild(p);
+    }
+  });
+
+  // 交互
+  let current=null;
+  entryEls.forEach(el=>{
+    el.addEventListener('click',()=>{
+      if(current) current.classList.remove('selected');
+      current=el; el.classList.add('selected');
+      document.getElementById('curText').textContent = el.textContent.slice(0,160);
+      const meta=[`#${el.dataset.id}`, el.dataset.kind, `${el.dataset.minutes} ${t('minutes')}`, `${t('metaDate')}：${el.dataset.date}`];
+      if(el.classList.contains('suspect')) meta.push(`· ${t('metaSus')}`);
+      document.getElementById('curMeta').textContent = meta.join(' · ');
+      const rec = labelMap[el.dataset.id];
+      document.getElementById('c1').value = rec?rec.c1:'';
+      document.getElementById('c2').value = rec?rec.c2:'';
+      document.getElementById('overMin').value = rec&&rec.overMin?rec.overMin:'';
+      document.getElementById('tagBtn').disabled=false;
+    });
+  });
+}
+
+/* ===== 汇总 ===== */
+function summarize(byDate=true){
+  const entries = Array.from(document.querySelectorAll('.entry'));
+  const bucketByDate={};
+  const allByC1={};
+  entries.forEach(el=>{
+    const id=el.dataset.id; const rec=labelMap[id]; if(!rec) return;
+    const baseMin = parseFloat(el.dataset.minutes)||0;
+    const m = rec.overMin!=null ? rec.overMin : baseMin;
+    const name = (rec.c2 && rec.c2.trim()) ? rec.c2.trim() : '（未命名）';
+    if(byDate){
+      const d = el.dataset.date || t('dateUnk');
+      if(!bucketByDate[d]) bucketByDate[d]={};
+      const g = bucketByDate[d][rec.c1] || (bucketByDate[d][rec.c1]={mins:0, secList:[]});
+      g.mins += m; g.secList.push({name, m});
+    }else{
+      const g = allByC1[rec.c1] || (allByC1[rec.c1]={mins:0, secList:[]});
+      g.mins += m; g.secList.push({name, m});
+    }
+  });
+  return {bucketByDate, allByC1};
+}
+function renderSum(){
+  const byDate = document.getElementById('byDate').checked;
+  const c2Mode = document.getElementById('c2Mode').value;
+  const {bucketByDate, allByC1} = summarize(byDate);
+  const area = document.getElementById('sumArea');
+  const html=[];
+
+  function makeLines(list){
+    const dup = list.map(s=>`${esc(s.name)}（${fmt(s.m)} ${t('minutes')}）`).join(' + ');
+    const mp = {}; list.forEach(s=>{ (mp[s.name]||(mp[s.name]=[])).push(s.m); });
+    const uniqMap = Object.fromEntries(Object.entries(mp).map(([k,arr])=>[k, arr.reduce((a,b)=>a+b,0)]));
+    return {dup, uniqMap};
+  }
+
+  if(byDate){
+    const dates = Object.keys(bucketByDate).sort((a,b)=>{
+      const aa = /^\d{4}-\d{2}-\d{2}$/.test(a)?a:'9999-99-99';
+      const bb = /^\d{4}-\d{2}-\d{2}$/.test(b)?b:'9999-99-99';
+      return aa.localeCompare(bb);
+    });
+    dates.forEach(d=>{
+      const groups = bucketByDate[d];
+      let dayTotal = 0; Object.values(groups).forEach(g=>{ dayTotal += g.mins; });
+
+      const weekText = /^\d{4}-\d{2}-\d{2}$/.test(d) ? fmtWeekParen(d) : '';
+      html.push(`<div class='dateSec'>
+        <div class='dateHead'>📅 ${esc(d)}${weekText}${d===t('dateUnk')?` <span class='mini'>${t('dateNote')}</span>`:""}</div>
+      `);
+
+      Object.keys(groups).sort().forEach(k=>{
+        const g=groups[k];
+        const {dup, uniqMap} = makeLines(g.secList);
+        html.push(`<div class='sum'><div><b>${esc(k)}</b></div>`);
+        if(c2Mode==='dup' || c2Mode==='both'){
+          html.push(`<div class='row'>${t('sumDup')}${dup||"<span class=muted>—</span>"}</div>`);
+        }
+        if(c2Mode==='uniq' || c2Mode==='both'){
+          if(c2Mode==='both'){ html.push(`<div class='row'>${t('sumUniqHdr')}</div>`); }
+          const keys = Object.keys(uniqMap).sort();
+          if(keys.length===0){
+            html.push(`<div class='row'><span class='muted'>—</span></div>`);
+          }else{
+            keys.forEach(name=>{
+              html.push(`<div class='row'>* ${esc(name)}：${fmt(uniqMap[name])} ${t('minutes')}</div>`);
+            });
+          }
+        }
+        html.push(`<div class='row'><b>${t('total')}</b> ${fmt(g.mins)} ${t('minutes')}</div></div>`);
+      });
+
+      html.push(`<div class='dateTotal'><b>${t('dayTotal')}</b> ${fmt(dayTotal)} ${t('minutes')}</div>`);
+      html.push(`</div>`);
+    });
+  }else{
+    html.push(`<div class='dateSec'><div class='dateHead'>📚 ${lang==='zh'?'不分日期（全部合并）':'All combined (no date split)'}</div>`);
+    const groups=allByC1;
+    let allTotal=0; Object.values(groups).forEach(g=>allTotal+=g.mins);
+
+    Object.keys(groups).sort().forEach(k=>{
+      const g=groups[k];
+      const {dup, uniqMap} = makeLines(g.secList);
+      html.push(`<div class='sum'><div><b>${esc(k)}</b></div>`);
+      if(c2Mode==='dup' || c2Mode==='both'){
+        html.push(`<div class='row'>${t('sumDup')}${dup||"<span class=muted>—</span>"}</div>`);
+      }
+      if(c2Mode==='uniq' || c2Mode==='both'){
+        if(c2Mode==='both'){ html.push(`<div class='row'>${t('sumUniqHdr')}</div>`); }
+        const keys = Object.keys(uniqMap).sort();
+        if(keys.length===0){
+          html.push(`<div class='row'><span class='muted'>—</span></div>`);
+        }else{
+          keys.forEach(name=>{
+            html.push(`<div class='row'>* ${esc(name)}：${fmt(uniqMap[name])} ${t('minutes')}</div>`);
+          });
+        }
+      }
+      html.push(`<div class='row'><b>${t('total')}</b> ${fmt(g.mins)} ${t('minutes')}</div></div>`);
+    });
+    html.push(`<div class='dateTotal'><b>${lang==='zh'?'总体总时间：':'Grand total:'}</b> ${fmt(allTotal)} ${t('minutes')}</div>`);
+    html.push(`</div>`);
+  }
+
+  area.innerHTML = html.join('');
+}
+
+/* ===== 版本：手动(5) + 自动(2) ===== */
+function readVersions(){ return getLS(VER_KEY,'[]'); }
+function writeVersions(arr){ setLS(VER_KEY, arr); }
+function makeSnapshot(){
+  const raw = getLS(RAW_KEY,'""');
+  const snap = { ts: nowTs(), raw, labelMap, c1:Array.from(c1Sug), c2:Array.from(c2Sug), cfg };
+  const arr = readVersions(); arr.push(snap); while(arr.length>5) arr.shift(); writeVersions(arr);
+}
+function readAutoVersions(){ return getLS(VER_AUTO_KEY,'[]'); }
+function writeAutoVersions(arr){ setLS(VER_AUTO_KEY, arr); }
+let autoTimer=null, lastAutoSig='';
+function currentStateForSig(){ const raw=getLS(RAW_KEY,'""'); return JSON.stringify({raw,labelMap,cfg}); }
+function scheduleAutoSave(reason){
+  const sig = currentStateForSig();
+  if(sig===lastAutoSig) return;
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(()=>{
+    const raw = getLS(RAW_KEY,'""');
+    const snap = { ts: nowTs(), reason: reason||'', raw, labelMap, c1:Array.from(c1Sug), c2:Array.from(c2Sug), cfg };
+    const arr = readAutoVersions(); arr.push(snap); while(arr.length>2) arr.shift(); writeAutoVersions(arr);
+    lastAutoSig = sig;
+  }, 800);
+}
+function exportJSON(obj, fname){
+  const blob = new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+function showHistory(){
+  const box = document.getElementById('histBody');
+  const autos = readAutoVersions();
+  const manual = readVersions();
+
+  const makeCard = (snap, idx, total, scope) => {
+    const rawLines = (snap.raw||'').split(/\r?\n/).length;
+    const labelCnt = Object.keys(snap.labelMap||{}).length;
+    const l1Cnt = new Set(Object.values(snap.labelMap||{}).map(x=>x.c1)).size;
+    const l2Cnt = new Set(Object.values(snap.labelMap||{}).map(x=>x.c2)).size;
+    const title = `${t('histSnap')} #${total-idx} · ${tsFmt(snap.ts)}${snap.reason?(' · '+esc(snap.reason)) : ''}`;
+    return `
+      <div class="histItem">
+        <div class="histHead">
+          <div><b>${esc(title)}</b></div>
+          <div class="small">${t('histCounts')}：${rawLines}/${labelCnt}/${l1Cnt}/${l2Cnt}</div>
+        </div>
+        <div class="histBtns">
+          <button data-act="restore" data-scope="${scope}" data-idx="${idx}">${t('btnRestore')}</button>
+          <button class="secondary" data-act="export" data-scope="${scope}" data-idx="${idx}">${t('btnExport')}</button>
+        </div>
+      </div>
+    `;
+  };
+
+  let html = '';
+  html += `<h3>${t('histAutoTitle')}</h3>`;
+  if(autos.length===0){
+    html += `<div class="muted">${lang==='zh'?'暂无自动保存。关键操作后会自动记录最近 2 个版本。':'No auto-saves yet. Key actions will record the last 2 automatically.'}</div>`;
+  }else{
+    html += autos.map((s,i)=>makeCard(s,i,autos.length,'auto')).join('');
+  }
+  html += `<hr class="sep">`;
+  html += `<h3>${t('histManualTitle')}</h3>`;
+  if(manual.length===0){
+    html += `<div class="muted">${t('histEmpty')}</div>`;
+  }else{
+    html += manual.map((s,i)=>makeCard(s,i,manual.length,'manual')).join('');
+  }
+
+  box.innerHTML = html;
+
+  box.querySelectorAll('button[data-act]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const idx = Number(btn.getAttribute('data-idx'));
+      const scope = btn.getAttribute('data-scope');
+      const arr = scope==='auto' ? readAutoVersions() : readVersions();
+      const snap = arr[idx]; if(!snap) return;
+      if(btn.getAttribute('data-act')==='export'){
+        exportJSON(snap, `AnnotSnapshot_${scope}_${tsFmt(snap.ts).replace(/[: ]/g,'_')}.json`);
+      }else{
+        setLS(RAW_KEY, snap.raw||'');
+        labelMap = snap.labelMap||{};
+        setLS(MAP_KEY, labelMap);
+        c1Sug.clear(); (snap.c1||[]).forEach(v=>c1Sug.add(v));
+        c2Sug.clear(); (snap.c2||[]).forEach(v=>c2Sug.add(v));
+        setLS(SUG1_KEY, Array.from(c1Sug)); setLS(SUG2_KEY, Array.from(c2Sug));
+        cfg = snap.cfg||defaultCfg; saveCfg();
+        updDatalist('dl1', c1Sug); updDatalist('dl2', c2Sug);
+        render(getLS(RAW_KEY,'""')); renderSum();
+        document.getElementById('histModal').classList.add('hidden');
+      }
+    });
+  });
+
+  document.getElementById('histModal').classList.remove('hidden');
+}
+
+/* ===== 粘贴 / 关键词 / 帮助 ===== */
+let appendMode = false;
+function openPaste(mode='replace'){
+  appendMode = (mode==='append');
+  document.getElementById('pasteModal').classList.remove('hidden');
+  const ta=document.getElementById('pasteInput'); ta.value = '';
+  document.getElementById('pasteTitle').textContent = t(appendMode?'pasteTitleAppend':'pasteTitle');
+  setTimeout(()=>ta.focus(),30);
+}
+function doParseFromModal(){
+  const newText = document.getElementById('pasteInput').value||'';
+  if(!newText){ document.getElementById('pasteModal').classList.add('hidden'); return; }
+  if(appendMode){
+    const old = getLS(RAW_KEY,'""')||'';
+    const merged = old ? (old.replace(/\s+$/,'') + '\n' + newText) : newText;
+    setLS(RAW_KEY, merged);
+    render(merged);
+    scheduleAutoSave('append');
+  }else{
+    if(Object.keys(labelMap).length>0){
+      if(!confirm(t('confirmReparse'))){ return; }
+      labelMap={}; setLS(MAP_KEY,labelMap); document.getElementById('sumArea').innerHTML='';
+      scheduleAutoSave('reparse_clear_labels');
+    }
+    setLS(RAW_KEY, newText);
+    render(newText);
+    scheduleAutoSave('parse_replace');
+  }
+  document.getElementById('pasteModal').classList.add('hidden');
+}
+function openKw(){
+  const m = document.getElementById('kwModal');
+  document.getElementById('kw_blue_tags').value = (cfg.blue.tags||[]).join('\n');
+  document.getElementById('kw_blue_expr').value = cfg.blue.minuteExpr||defaultCfg.blue.minuteExpr;
+  document.getElementById('kw_blue_suffix').value = cfg.blue.suffix||'分钟';
+  document.getElementById('kw_green_words').value = (cfg.green.keywords||[]).join('\n');
+  document.getElementById('kw_green_only_when_no_blue').checked = !!cfg.green.onlyWhenNoBlue;
+  m.classList.remove('hidden');
+}
+function saveKw(){
+  const tags = document.getElementById('kw_blue_tags').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const expr = document.getElementById('kw_blue_expr').value.trim() || defaultCfg.blue.minuteExpr;
+  const suffix = document.getElementById('kw_blue_suffix').value.trim() || (lang==='zh'?'分钟':'minutes');
+  const greens = document.getElementById('kw_green_words').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const onlyNoBlue = document.getElementById('kw_green_only_when_no_blue').checked;
+  try{ new RegExp(`(${expr})\\s*${escReg(suffix)}`, 'i'); }catch(e){ alert((lang==='zh'?'分钟表达式不是有效的正则：':'Invalid regex: ')+e.message); return; }
+  cfg = { blue: { tags, minuteExpr: expr, suffix }, green: { keywords: greens, onlyWhenNoBlue: onlyNoBlue } };
+  saveCfg();
+  const raw = getLS(RAW_KEY,'""'); if(raw && raw!=="") render(raw);
+  document.getElementById('kwModal').classList.add('hidden');
+}
+function openHelp(){
+  const ex = [
+    '13:02, Oct 21, 2025；【学习时间】花了10分钟读新文献',
+    '13:15, Oct 21, 2025；【工作时间】花了5+5分钟做PPT',
+    '14:00；和本科生讨论实验刺激问题（未计时）',
+    '15:30, Oct 21, 2025；【学习时间】等效花了3分钟回顾公式'
+  ].join('\n');
+  const stepsZh = `
+1）点"粘贴日志/追加粘贴"→ 粘贴原文 → "解析"。  
+2）左栏点击蓝/疑似行，在右侧填写"一级/二级"并"打标签"。  
+3）点"汇总"，默认按日期去重逐行，底部显示"当日总时间"，日期旁会标注"星期几"。  
+4）点"保存标签"建立手动快照；关键操作后会自动保存最近 2 个版本；"历史"可恢复或导出。  
+5）"定义关键词"可微调蓝/绿命中规则与分钟后缀。`.trim();
+  const stepsEn = `
+1) Click "Paste/Append" → paste text → "Parse".  
+2) Click blue/suspect rows, fill L1/L2 on the right and "Tag".  
+3) Click "Summarize": split-by-date, unique-only, day total; weekday next to date.  
+4) Use "Save Tags" for manual snapshots; key actions auto-save last 2; "History" restores/exports.  
+5) "Define Keywords" to tweak blue/green rules and minute suffix.`.trim();
+  const html = `
+    <p><b>${lang==='zh'?'使用步骤：':'Steps:'}</b></p>
+    <p>${lang==='zh'?stepsZh.replace(/\n/g,'<br>'):stepsEn.replace(/\n/g,'<br>')}</p>
+    <hr class="sep">
+    <p><b>${lang==='zh'?'示例日志：':'Sample log:'}</b></p>
+    <pre style="background:#f7f7f7;border:1px solid #eee;padding:8px;border-radius:8px;white-space:pre-wrap">${esc(ex)}</pre>
+  `;
+  document.getElementById('helpBody').innerHTML = html;
+  document.getElementById('helpModal').classList.remove('hidden');
+}
+function loadSample(){
+  const sample = [
+    '13:02, Oct 21, 2025；【学习时间】花了10分钟读新文献',
+    '13:15, Oct 21, 2025；【工作时间】花了5+5分钟做PPT',
+    '14:00；和本科生讨论实验刺激问题（未计时）',
+    '15:30, Oct 21, 2025；【学习时间】等效花了3分钟回顾公式',
+    '16:10；普通记录一行（无计时）'
+  ].join('\n');
+  setLS(RAW_KEY, sample);
+  labelMap = {}; saveMap();                // ← 清空旧标签，避免示例"串标"
+  render(sample);
+  scheduleAutoSave('load_sample');
+  document.getElementById('helpModal').classList.add('hidden');
+}
+
+/* ===== 删除末行 ===== */
+function openDeleteModal(){
+  const raw = getLS(RAW_KEY,'""')||'';
+  const lines = raw.split(/\r?\n/);
+  if(!raw || lines.length===0){ alert(t('delNone')); return; }
+  document.getElementById('delInfo').textContent = t('delInfo').replace('{n}', lines.length);
+  const inp = document.getElementById('delCount');
+  if(!inp.value || Number(inp.value)<1) inp.value = 1;
+  updateDelPreview();
+  document.getElementById('delModal').classList.remove('hidden');
+}
+function updateDelPreview(){
+  const raw = getLS(RAW_KEY,'""')||'';
+  const lines = raw.split(/\r?\n/);
+  let n = Math.max(1, Number(document.getElementById('delCount').value||1));
+  n = Math.min(n, lines.length);
+  const slice = lines.slice(-n);
+  document.getElementById('delPreview').textContent = slice.join('\n');
+}
+function doDeleteTail(){
+  const raw = getLS(RAW_KEY,'""')||'';
+  let lines = raw.split(/\r?\n/);
+  if(lines.length===0){ document.getElementById('delModal').classList.add('hidden'); return; }
+  let n = Math.max(1, Number(document.getElementById('delCount').value||1));
+  n = Math.min(n, lines.length);
+  if(!confirm(t('delConfirm').replace('{n}', n))) return;
+  lines = lines.slice(0, lines.length - n);
+  const newRaw = lines.join('\n');
+  setLS(RAW_KEY, newRaw);
+  render(newRaw);
+  pruneLabelMapToCurrentEntries();           // ← 新增：删除后清理孤儿标签
+  document.getElementById('curText').textContent = '';   // 可选：清空右侧"当前条目/元信息"
+  document.getElementById('curMeta').textContent = '';
+  document.getElementById('tagBtn').disabled = true;
+  scheduleAutoSave('delete_last_'+n);
+  document.getElementById('delModal').classList.add('hidden');
+}
+
+function pruneLabelMapToCurrentEntries(){
+  // 收集当前 DOM 中仍然存在的条目 id
+  const liveIds = new Set(Array.from(document.querySelectorAll('.entry')).map(el => el.dataset.id));
+  let removed = 0;
+  Object.keys(labelMap).forEach(k=>{
+    if(!liveIds.has(k)){ delete labelMap[k]; removed++; }
+  });
+  if(removed){
+    saveMap();                 // 持久化清理后的 labelMap
+    scheduleAutoSave('prune_labels_'+removed); // 进入自动快照，便于回滚
+  }
+}
+
+/* ===== 事件绑定 ===== */
+function updDatalist(id,set){ const dl=document.getElementById(id); dl.innerHTML=''; Array.from(set).sort().forEach(v=>{ const o=document.createElement('option'); o.value=v; dl.appendChild(o); }); }
+
+document.addEventListener('DOMContentLoaded',()=>{
+  applyI18n();
+  lastAutoSig = currentStateForSig();
+
+  updDatalist('dl1', c1Sug); updDatalist('dl2', c2Sug);
+
+  document.getElementById('pasteBtn').addEventListener('click', ()=>openPaste('replace'));
+  document.getElementById('appendBtn').addEventListener('click', ()=>openPaste('append'));
+  document.getElementById('cancelPaste').addEventListener('click',()=>document.getElementById('pasteModal').classList.add('hidden'));
+  document.getElementById('parseBtn').addEventListener('click', doParseFromModal);
+
+  document.getElementById('reparseBtn').addEventListener('click',()=>{
+    const raw = getLS(RAW_KEY,'""');
+    if(!raw || raw===""){ openPaste('replace'); return; }
+    if(Object.keys(labelMap).length>0){
+      if(!confirm(t('confirmReparse'))) return;
+      labelMap={}; setLS(MAP_KEY,labelMap); document.getElementById('sumArea').innerHTML='';
+      scheduleAutoSave('reparse_clear_labels');
+    }
+    render(raw);
+    scheduleAutoSave('reparse_render');
+  });
+
+  // 删除末行
+  document.getElementById('delBtn').addEventListener('click', openDeleteModal);
+  document.getElementById('delCancel').addEventListener('click', ()=>document.getElementById('delModal').classList.add('hidden'));
+  document.getElementById('delCount').addEventListener('input', updateDelPreview);
+  document.getElementById('delDo').addEventListener('click', doDeleteTail);
+
+  // 关键词
+  document.getElementById('kwBtn').addEventListener('click', openKw);
+  document.getElementById('kwCancel').addEventListener('click',()=>document.getElementById('kwModal').classList.add('hidden'));
+  document.getElementById('kwReset').addEventListener('click',()=>{
+    if(!confirm(lang==='zh'?'恢复到默认关键词与分钟表达式？':'Reset to default keywords and pattern?')) return;
+    cfg = JSON.parse(JSON.stringify(defaultCfg)); saveCfg(); openKw();
+  });
+  document.getElementById('kwSave').addEventListener('click', saveKw);
+
+  // 帮助/语言
+  document.getElementById('helpBtn').addEventListener('click', openHelp);
+  document.getElementById('closeHelp').addEventListener('click', ()=>document.getElementById('helpModal').classList.add('hidden'));
+  document.getElementById('loadSample').addEventListener('click', loadSample);
+  document.getElementById('langBtn').addEventListener('click', ()=>{ lang=(lang==='zh'?'en':'zh'); localStorage.setItem(LANG_KEY, lang); applyI18n(); render(getLS(RAW_KEY,'""')); renderSum(); });
+
+  // 打标签
+  document.getElementById('tagBtn').addEventListener('click',()=>{
+    const current = document.querySelector('.entry.selected'); if(!current) return;
+    const id=current.dataset.id;
+    const c1 = document.getElementById('c1').value.trim();
+    const c2 = document.getElementById('c2').value.trim();
+    const over = document.getElementById('overMin').value.trim();
+    if(!c1 || !c2){ alert(t('alertNeedTitles')); return; }
+    if(over && isNaN(parseFloat(over))){ alert(t('alertOverNum')); return; }
+
+    c1Sug.add(c1); c2Sug.add(c2);
+    updDatalist('dl1', c1Sug); updDatalist('dl2', c2Sug);
+    setLS(SUG1_KEY, Array.from(c1Sug)); setLS(SUG2_KEY, Array.from(c2Sug));
+
+    labelMap[id] = { c1, c2, overMin: over?parseFloat(over):null };
+    saveMap();
+
+    let tag = current.querySelector('.badge');
+    if(!tag){ tag=document.createElement('span'); tag.className='badge'; current.appendChild(tag); }
+    tag.textContent = c1+' / '+c2 + (over?(' · '+over+'m'):'');
+    scheduleAutoSave('tag');
+  });
+
+  // 汇总
+  document.getElementById('sumBtn').addEventListener('click', renderSum);
+  document.getElementById('byDate').addEventListener('change', renderSum);
+  document.getElementById('c2Mode').addEventListener('change', renderSum);
+
+  // 清空标签
+  document.getElementById('clearBtn').addEventListener('click',()=>{
+    if(confirm(t('confirmClear'))){
+      labelMap={}; setLS(MAP_KEY,labelMap); document.getElementById('sumArea').innerHTML='';
+      document.querySelectorAll('.entry .badge').forEach(x=>x.remove());
+      scheduleAutoSave('clear_labels');
+    }
+  });
+
+  // 手动保存 & 历史
+  document.getElementById('saveSnapBtn').addEventListener('click', ()=>{ makeSnapshot(); alert(t('toastSaved')); });
+  document.getElementById('histBtn').addEventListener('click', showHistory);
+  document.getElementById('closeHist').addEventListener('click', ()=>document.getElementById('histModal').classList.add('hidden'));
+
+  // 初始渲染
+  const raw = getLS(RAW_KEY,'""'); if(raw && raw!=="") render(raw);
+});
+</script>
