@@ -5,7 +5,7 @@ Copyright (c) 2025 Sam Zebrado
 
 <!doctype html><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>弹幕日志：打标签 + 汇总查看（本地版｜按日期｜多语言｜含星期｜版本 + 删除末行）</title>
+<title>弹幕日志：打标签 + 汇总查看（本地版｜按日期｜多语言｜含星期｜版本 + 删除末行 + 插入粘贴 + 导入JSON + 修改指定行）</title>
 <style>
 html,body{height:100%;margin:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:#fff}
@@ -16,7 +16,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
 .legend{margin:8px 0 12px;font-size:13px;color:#555}
 .blue{background:#cfe8ff;border-radius:3px;padding:0 2px}
 .green{background:#d8f5d0;border-radius:3px;padding:0 2px}
-.cyan{background:#d5f8ff;border-radius:3px;padding:0 2px}
+.cyan{background:#d5f8d0;border-radius:3px;padding:0 2px}
 .content{white-space:pre-wrap;word-break:break-word;font-size:15px;line-height:1.65}
 .entry{display:block;margin:8px 0;padding:2px 4px;border-left:4px solid transparent;cursor:pointer}
 .entry.blue{border-left-color:#5aa0ff;background:#f1f7ff}
@@ -64,8 +64,10 @@ pre.preview{background:#f7f7f7;border:1px solid #eee;padding:8px;border-radius:8
       <span data-i18n="leftTitle">左栏｜高亮日志（命中/疑似会单独成行，可点击）</span>
       <button id="pasteBtn" class="secondary" data-i18n="btnPaste">粘贴日志</button>
       <button id="appendBtn" class="secondary" data-i18n="btnAppend">追加粘贴</button>
-      <button id="reparseBtn" class="secondary" data-i18n="btnReparse">重新解析</button>
+      <button id="insertBtn" class="secondary" data-i18n="btnInsert">插入粘贴</button>
+      <button id="editBtn" class="secondary" data-i18n="btnEdit">修改指定行</button>
       <button id="delBtn" class="secondary" data-i18n="btnDelete">删除末行</button>
+      <button id="reparseBtn" class="secondary" data-i18n="btnReparse">重新解析</button>
     </div>
     <div class="body">
       <div class="legend" id="legend"></div>
@@ -79,6 +81,8 @@ pre.preview{background:#f7f7f7;border:1px solid #eee;padding:8px;border-radius:8
       <button id="kwBtn" class="secondary" data-i18n="btnKw">定义关键词</button>
       <button id="saveSnapBtn" class="secondary" data-i18n="btnSave">保存标签</button>
       <button id="histBtn" class="secondary" data-i18n="btnHist">历史</button>
+      <button id="importBtn" class="secondary" data-i18n="btnImport">导入JSON</button>
+      <button id="exportBtn" class="secondary" data-i18n="btnExport">导出JSON</button>
       <button id="langBtn" class="secondary" data-i18n="btnLang">语言</button>
       <button id="helpBtn" class="secondary" data-i18n="btnHelp">帮助</button>
     </div>
@@ -119,6 +123,34 @@ pre.preview{background:#f7f7f7;border:1px solid #eee;padding:8px;border-radius:8
     <div class="actions">
       <button id="cancelPaste" class="secondary" data-i18n="cancel">取消</button>
       <button id="parseBtn" data-i18n="parse">解析</button>
+    </div>
+  </div>
+</div>
+
+<!-- 插入粘贴弹窗 -->
+<div id="insertModal" class="modal hidden">
+  <div class="dialog">
+    <div class="title" data-i18n="insTitle">插入粘贴（指定从倒数第 N 行之前插入）</div>
+    <div class="cont">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <label class="cb" style="border:none;padding:0">
+          <span data-i18n="insTailLabel">从倒数第</span>
+          <input id="insTail" type="number" min="0" value="0" style="width:100px">
+          <span data-i18n="insTailUnit">行之前插入</span>
+        </label>
+        <span class="small" id="insInfo"></span>
+      </div>
+      <div style="margin-top:8px" class="small" data-i18n="insPreviewHint">将以下末尾行作为参照（预览）：</div>
+      <pre id="insPreview" class="preview"></pre>
+      <hr class="sep">
+      <div>
+        <b data-i18n="insTextLabel">粘贴内容：</b>
+        <textarea id="insText" placeholder="将要插入的多行文本…"></textarea>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="insCancel" class="secondary" data-i18n="cancel">取消</button>
+      <button id="insDo" data-i18n="insDo">插入</button>
     </div>
   </div>
 </div>
@@ -212,8 +244,35 @@ pre.preview{background:#f7f7f7;border:1px solid #eee;padding:8px;border-radius:8
   </div>
 </div>
 
+<!-- 修改指定行弹窗 -->
+<div id="editModal" class="modal hidden">
+  <div class="dialog">
+    <div class="title" data-i18n="editTitle">修改指定行</div>
+    <div class="cont">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <label class="cb" style="border:none;padding:0">
+          <span data-i18n="editLineNum">目标行号</span>：
+          <input id="editLine" type="number" min="1" value="1" style="width:120px">
+        </label>
+        <span class="small" id="editInfo"></span>
+      </div>
+      <div style="margin-top:8px" class="small" data-i18n="editPreviewHint">预览：显示该行及其后的行</div>
+      <pre id="editPreview" class="preview"></pre>
+      <hr class="sep">
+      <div>
+        <b data-i18n="editTextLabel">编辑内容（可多行，替换原行）</b>
+        <textarea id="editArea"></textarea>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="editCancel" class="secondary" data-i18n="cancel">取消</button>
+      <button id="editApply" data-i18n="editApply">应用修改</button>
+    </div>
+  </div>
+</div>
+
 <script>
-/* ===== LocalStorage Keys ===== */
+/* ===== LocalStorage Keys（保持不变） ===== */
 const RAW_KEY ='annot_raw_text';
 const SUG1_KEY='annot_c1_suggestions';
 const SUG2_KEY='annot_c2_suggestions';
@@ -229,9 +288,11 @@ const i18n = {
     leftTitle:'左栏｜高亮日志（命中/疑似会单独成行，可点击）',
     rightTitle:'右栏｜打标签与汇总',
     legend:'高亮：<span class="blue">【…时间】…</span>｜<span class="green">学习/工作时间</span>｜<span class="cyan">NN…分钟</span> · 蓝/疑似条目可点选后打"一级/二级"标签，再点「汇总」。',
-    btnPaste:'粘贴日志', btnAppend:'追加粘贴', btnReparse:'重新解析', btnDelete:'删除末行',
+    btnPaste:'粘贴日志', btnAppend:'追加粘贴', btnInsert:'插入粘贴', btnReparse:'重新解析', btnDelete:'删除末行',
     btnKw:'定义关键词', btnLang:'语言', btnHelp:'帮助',
     btnSave:'保存标签', btnHist:'历史',
+    btnImport:'导入JSON', btnExport:'导出JSON',
+    btnEdit:'修改指定行',
     phC1:'一级标题（点击可选历史）', phC2:'二级标题（点击可选历史）', phOver:'覆盖分钟（可选）',
     byDate:'按日期分割', show:'显示：',
     optUniq:'仅去重复（换行列出）', optDup:'仅带重复（加号连接）', optBoth:'带重复 + 去重复',
@@ -254,14 +315,14 @@ const i18n = {
     alertNeedTitles:'请填写一级与二级标题',
     alertOverNum:'覆盖分钟需为数字',
     metaDate:'日期', metaSus:'疑似', metaMin:'分钟',
-    histTitle:'历史版本',
+    histTitle:'历史',
     histEmpty:'暂无手动快照。用"保存标签"保存一个快照。',
     histSnap:'快照',
     histCounts:'日志行/标签条目/一级标题数/二级标题数',
-    btnRestore:'恢复此版本', btnExport:'导出 JSON',
+    btnRestore:'恢复此版本', /* btnExport 已有 */
     toastSaved:'已保存当前版本到历史（最多保留 5 个）。',
-    histAutoTitle:'自动保存（最近 2 个）',
-    histManualTitle:'手动保存（最近 5 个）',
+    histAutoTitle:'自动保存（最近 2）',
+    histManualTitle:'手动保存（最近 5）',
     // 删除末行
     delTitle:'删除末尾行',
     delHowMany:'删除行数',
@@ -269,15 +330,31 @@ const i18n = {
     delDo:'删除',
     delInfo:'当前日志共 {n} 行',
     delConfirm:'确认删除最后 {n} 行？',
-    delNone:'当前没有可删除的日志。'
+    delNone:'当前没有可删除的日志。',
+    // 插入粘贴
+    insTitle:'插入粘贴（指定从倒数第 N 行之前插入）',
+    insTailLabel:'从倒数第', insTailUnit:'行之前插入',
+    insPreviewHint:'将以下末尾行作为参照（预览）：',
+    insTextLabel:'粘贴内容：',
+    insDo:'插入',
+    insInfoTpl:'总行数 {total} · 插入位置：第 {pos} 行之后 · 粘贴行数 {addLines} · 预计新增条目 {addEntries}',
+    insNoRaw:'当前没有日志，请先粘贴或导入。',
+    // 修改指定行
+    editTitle:'修改指定行',
+    editLineNum:'目标行号',
+    editPreviewHint:'预览：显示该行及其后的行',
+    editTextLabel:'编辑内容（可多行，替换原行）',
+    editApply:'应用修改',
   },
   en: {
     leftTitle:'Left｜Highlighted log (hits/suspects break into lines, clickable)',
     rightTitle:'Right｜Tag & Summarize',
     legend:'Highlight: <span class="blue">[…time] …</span> | <span class="green">Study/Work time</span> | <span class="cyan">NN… minutes</span> · Click blue/suspect rows to assign L1/L2, then "Summarize".',
-    btnPaste:'Paste', btnAppend:'Append', btnReparse:'Reparse', btnDelete:'Delete tail',
+    btnPaste:'Paste', btnAppend:'Append', btnInsert:'Insert', btnReparse:'Reparse', btnDelete:'Delete tail',
     btnKw:'Define Keywords', btnLang:'Language', btnHelp:'Help',
     btnSave:'Save Tags', btnHist:'History',
+    btnImport:'Import JSON', btnExport:'Export',
+    btnEdit:'Edit line',
     phC1:'Level-1 title (click for history)', phC2:'Level-2 title (click for history)', phOver:'Override minutes (optional)',
     byDate:'Split by date', show:'Show:',
     optUniq:'Unique only (one per line)', optDup:'With duplicates (+ joined)', optBoth:'Both',
@@ -304,7 +381,7 @@ const i18n = {
     histEmpty:'No manual snapshots yet. Use "Save Tags" to create one.',
     histSnap:'Snapshot',
     histCounts:'Raw lines / labeled entries / L1 count / L2 count',
-    btnRestore:'Restore', btnExport:'Export JSON',
+    btnRestore:'Restore',
     toastSaved:'Current version saved (keeping last 5).',
     histAutoTitle:'Auto-saved (last 2)',
     histManualTitle:'Manual (last 5)',
@@ -315,7 +392,21 @@ const i18n = {
     delDo:'Delete',
     delInfo:'Current log has {n} lines',
     delConfirm:'Delete the last {n} lines?',
-    delNone:'No log to delete.'
+    delNone:'No log to delete.',
+    // 插入粘贴
+    insTitle:'Insert paste (before the last N lines)',
+    insTailLabel:'Insert before last', insTailUnit:'lines',
+    insPreviewHint:'Preview of tail lines:',
+    insTextLabel:'Text to insert:',
+    insDo:'Insert',
+    insInfoTpl:'Total {total} lines · Insert after line {pos} · Inserting {addLines} lines · Estimated new entries {addEntries}',
+    insNoRaw:'No log yet. Paste or import first.',
+    // 修改指定行
+    editTitle:'Edit a specific line',
+    editLineNum:'Target line #',
+    editPreviewHint:'Preview: show this line and everything after it',
+    editTextLabel:'Edited text (may be multi-line; replaces the original line)',
+    editApply:'Apply',
   }
 };
 let lang = localStorage.getItem(LANG_KEY)||'zh';
@@ -365,115 +456,101 @@ const c2Sug = new Set(getLS(SUG2_KEY,'[]'));
 let labelMap = getLS(MAP_KEY,'{}');
 function saveMap(){ setLS(MAP_KEY,labelMap); }
 
-/* ===== 日期识别（仅行首"时间, 日期"） ===== */
+/* ===== 日期 ===== */
 const monMap={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,sept:9,oct:10,nov:11,dec:12};
 function pad(n){return String(n).padStart(2,'0');}
 function normYMD(y,m,d){ return `${y}-${pad(m)}-${pad(d)}`; }
 function findDateToken(line){
   let m=line.match(/^\s*\d{1,2}:\d{2},\s*(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Sept|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2}),\s*(\d{4})/i);
-  if(m){ const mm=monMap[m[1].slice(0,3).toLowerCase()]; return normYMD(m[3],mm,m[2]); }
+  if(m){ const mon={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,sept:9,oct:10,nov:11,dec:12}[m[1].slice(0,3).toLowerCase()]; return normYMD(m[3],mon,m[2]); }
   m=line.match(/^\s*\d{1,2}:\d{2},\s*(20\d{2})年(\d{1,2})月(\d{1,2})日/);
   if(m){ return normYMD(m[1],m[2],m[3]); }
   return null;
 }
-
-/* ===== 星期几（随语言） ===== */
 const weekdayZh=['周日','周一','周二','周三','周四','周五','周六'];
 const weekdayEn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function weekdayLabel(ymd){
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
-  if(!m) return '';
-  const dt = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
-  const idx = dt.getDay();
-  return (lang==='zh'?weekdayZh:weekdayEn)[idx] || '';
+  const u=/^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd); if(!u) return '';
+  const dt=new Date(+u[1],+u[2]-1,+u[3]); const w=dt.getDay();
+  return (lang==='zh'?weekdayZh:weekdayEn)[w]||'';
 }
-function fmtWeekParen(ymd){
-  const w = weekdayLabel(ymd);
-  if(!w) return '';
-  return lang==='zh' ? `（${w}）` : ` (${w})`;
-}
+function fmtWeekParen(ymd){ const w=weekdayLabel(ymd); return w?(lang==='zh'?`（${w}）`:` (${w})`):''; }
 
-/* ===== 分钟解析（蓝命中行） ===== */
+/* ===== 条目判定 & 分钟解析 ===== */
+function isEntryLine(line){
+  const hasBlue = reBlueLine.test(line);
+  const hasKW = reGreenKW.test(line); reGreenKW.lastIndex = 0;
+  const hasBracket = reBlueTags.test(line);
+  return hasBlue || (hasKW && !hasBracket);
+}
 function parseMinutesFromBlue(text){
   const mLine = text.match(reBlueLine);
   if(mLine){
     const m = mLine[0].match(reBlueMinute);
     if(m){
       const expr = (m[1]||'').split('+').map(s=>parseFloat(s)).filter(x=>!isNaN(x));
-      const min = expr.reduce((a,b)=>a+b,0);
-      return {min, exact:true};
+      return {min: expr.reduce((a,b)=>a+b,0), exact:true};
     }
   }
   return {min:0, exact:false};
 }
 
-/* ===== 左栏高亮 ===== */
-function hiInline(s, isBlueHitForThisLine=false){
+/* ===== 高亮渲染 ===== */
+function hiInline(s, blueHit=false){
   let t=esc(s);
+  t=t.replace(/^(\s*\d{1,2}:\d{2})(,?\s*(?:[A-Za-z]{3,9}\s+\d{1,2},\s*\d{4}|\d{4}年\d{1,2}月\d{1,2}日)?)/,'<span class="cyan">$1</span>$2');
   if(cfg.blue.tags && cfg.blue.tags.length){
-    const tagsAlt = cfg.blue.tags.map(escReg).join('|');
-    t = t.replace(new RegExp(`(${tagsAlt})`,'g'),'<span class="blue">$1</span>');
+    const alt=cfg.blue.tags.map(escReg).join('|');
+    t=t.replace(new RegExp(`(${alt})`,'g'),'<span class="blue">$1</span>');
   }
-  const doGreen = !(cfg.green.onlyWhenNoBlue && isBlueHitForThisLine);
+  const doGreen=!(cfg.green.onlyWhenNoBlue && blueHit);
   if(doGreen && cfg.green.keywords && cfg.green.keywords.length){
     try{
-      const kwAlt = cfg.green.keywords.map(escReg).join('|');
-      t = t.replace(new RegExp(`(?<!【)(${kwAlt})(?!】)`,'g'),'<span class="green">$1</span>');
+      const alt=cfg.green.keywords.map(escReg).join('|');
+      t=t.replace(new RegExp(`(?<!【)(${alt})(?!】)`,'g'),'<span class="green">$1</span>');
     }catch(e){
-      const kwAlt = cfg.green.keywords.map(escReg).join('|');
-      t = t.replace(new RegExp(`(${kwAlt})`,'g'),'<span class="green">$1</span>');
+      const alt=cfg.green.keywords.map(escReg).join('|');
+      t=t.replace(new RegExp(`(${alt})`,'g'),'<span class="green">$1</span>');
     }
   }
-  t = t.replace(reMinuteGlobal, m => `<span class="cyan">${m}</span>`);
+  t=t.replace(reMinuteGlobal,m=>`<span class="cyan">${m}</span>`);
   return t;
 }
-
-/* ===== 左栏渲染 ===== */
 function render(raw){
-  const cont = document.getElementById('content');
-  cont.innerHTML='';
-  const lines = (raw||'').replace(/\r\n?/g,'\n').split('\n');
-  const entryEls=[];
-  let idx=0;
-  let currentDate=t('dateUnk');
-
+  const cont=document.getElementById('content'); cont.innerHTML='';
+  const lines=(raw||'').replace(/\r\n?/g,'\n').split('\n');
+  const entryEls=[]; let idx=0; let currentDate=t('dateUnk');
   lines.forEach(line=>{
-    const dateTok = findDateToken(line);
-    if(dateTok) currentDate = dateTok;
-
-    const hasBlue    = reBlueLine.test(line);
-    const hasKW      = reGreenKW.test(line);
-    const hasBracket = reBlueTags.test(line);
-    reGreenKW.lastIndex = 0;
+    const d=findDateToken(line); if(d) currentDate=d;
+    const hasBlue=reBlueLine.test(line);
+    const hasKW=reGreenKW.test(line); reGreenKW.lastIndex = 0;
+    const hasBracket=reBlueTags.test(line);
 
     if(hasBlue || (hasKW && !hasBracket)){
       const div=document.createElement('div');
       div.className='entry'+(hasBlue?' blue':' suspect');
       div.innerHTML = hiInline(line, hasBlue);
-      div.dataset.id = 'e'+(++idx);
-      div.dataset.kind = /学习|study/i.test(line) ? '学习' : (/工作|work/i.test(line)? '工作':'未知');
-      const pm = hasBlue ? parseMinutesFromBlue(line) : {min:0, exact:false};
-      div.dataset.minutes = String(pm.min||0);
+      div.dataset.id='e'+(++idx);
+      div.dataset.kind=/学习|study/i.test(line)?'学习':(/工作|work/i.test(line)?'工作':'未知');
+      const pm=hasBlue?parseMinutesFromBlue(line):{min:0,exact:false};
+      div.dataset.minutes=String(pm.min||0);
       if(!pm.exact) div.classList.add('suspect');
-      div.dataset.date = currentDate;
+      div.dataset.date=currentDate;
 
-      const rec = labelMap[div.dataset.id];
+      const rec=labelMap[div.dataset.id];
       if(rec){
         const b=document.createElement('span'); b.className='badge';
         b.textContent=rec.c1+' / '+rec.c2+(rec.overMin?(' · '+rec.overMin+'m'):'');
         div.appendChild(b);
       }
-      cont.appendChild(div);
-      entryEls.push(div);
+      cont.appendChild(div); entryEls.push(div);
     }else{
-      const isBlueHit = reBlueLine.test(line);
       const p=document.createElement('div'); p.className='line';
-      p.innerHTML=hiInline(line, isBlueHit);
+      p.innerHTML=hiInline(line,reBlueLine.test(line));
       cont.appendChild(p);
     }
   });
 
-  // 交互
   let current=null;
   entryEls.forEach(el=>{
     el.addEventListener('click',()=>{
@@ -494,150 +571,118 @@ function render(raw){
 
 /* ===== 汇总 ===== */
 function summarize(byDate=true){
-  const entries = Array.from(document.querySelectorAll('.entry'));
-  const bucketByDate={};
-  const allByC1={};
+  const entries=Array.from(document.querySelectorAll('.entry'));
+  const bucketByDate={}, allByC1={};
   entries.forEach(el=>{
     const id=el.dataset.id; const rec=labelMap[id]; if(!rec) return;
-    const baseMin = parseFloat(el.dataset.minutes)||0;
-    const m = rec.overMin!=null ? rec.overMin : baseMin;
-    const name = (rec.c2 && rec.c2.trim()) ? rec.c2.trim() : '（未命名）';
+    const baseMin=parseFloat(el.dataset.minutes)||0;
+    const m=rec.overMin!=null?rec.overMin:baseMin;
+    const name=(rec.c2&&rec.c2.trim())?rec.c2.trim():'（未命名）';
     if(byDate){
-      const d = el.dataset.date || t('dateUnk');
+      const d=el.dataset.date||t('dateUnk');
       if(!bucketByDate[d]) bucketByDate[d]={};
-      const g = bucketByDate[d][rec.c1] || (bucketByDate[d][rec.c1]={mins:0, secList:[]});
-      g.mins += m; g.secList.push({name, m});
+      const g=bucketByDate[d][rec.c1]||(bucketByDate[d][rec.c1]={mins:0,secList:[]});
+      g.mins+=m; g.secList.push({name,m});
     }else{
-      const g = allByC1[rec.c1] || (allByC1[rec.c1]={mins:0, secList:[]});
-      g.mins += m; g.secList.push({name, m});
+      const g=allByC1[rec.c1]||(allByC1[rec.c1]={mins:0,secList:[]});
+      g.mins+=m; g.secList.push({name,m});
     }
   });
   return {bucketByDate, allByC1};
 }
 function renderSum(){
-  const byDate = document.getElementById('byDate').checked;
-  const c2Mode = document.getElementById('c2Mode').value;
-  const {bucketByDate, allByC1} = summarize(byDate);
-  const area = document.getElementById('sumArea');
-  const html=[];
-
+  const byDate=document.getElementById('byDate').checked;
+  const c2Mode=document.getElementById('c2Mode').value;
+  const {bucketByDate,allByC1}=summarize(byDate);
+  const area=document.getElementById('sumArea'); const html=[];
   function makeLines(list){
-    const dup = list.map(s=>`${esc(s.name)}（${fmt(s.m)} ${t('minutes')}）`).join(' + ');
-    const mp = {}; list.forEach(s=>{ (mp[s.name]||(mp[s.name]=[])).push(s.m); });
-    const uniqMap = Object.fromEntries(Object.entries(mp).map(([k,arr])=>[k, arr.reduce((a,b)=>a+b,0)]));
-    return {dup, uniqMap};
+    const dup=list.map(s=>`${esc(s.name)}（${fmt(s.m)} ${t('minutes')}）`).join(' + ');
+    const mp={}; list.forEach(s=>{ (mp[s.name]||(mp[s.name]=[])).push(s.m); });
+    const uniqMap=Object.fromEntries(Object.entries(mp).map(([k,arr])=>[k,arr.reduce((a,b)=>a+b,0)]));
+    return {dup,uniqMap};
   }
-
   if(byDate){
-    const dates = Object.keys(bucketByDate).sort((a,b)=>{
-      const aa = /^\d{4}-\d{2}-\d{2}$/.test(a)?a:'9999-99-99';
-      const bb = /^\d{4}-\d{2}-\d{2}$/.test(b)?b:'9999-99-99';
+    const dates=Object.keys(bucketByDate).sort((a,b)=>{
+      const aa=/^\d{4}-\d{2}-\d{2}$/.test(a)?a:'9999-99-99';
+      const bb=/^\d{4}-\d{2}-\d{2}$/.test(b)?b:'9999-99-99';
       return aa.localeCompare(bb);
     });
     dates.forEach(d=>{
-      const groups = bucketByDate[d];
-      let dayTotal = 0; Object.values(groups).forEach(g=>{ dayTotal += g.mins; });
-
-      const weekText = /^\d{4}-\d{2}-\d{2}$/.test(d) ? fmtWeekParen(d) : '';
-      html.push(`<div class='dateSec'>
-        <div class='dateHead'>📅 ${esc(d)}${weekText}${d===t('dateUnk')?` <span class='mini'>${t('dateNote')}</span>`:""}</div>
-      `);
-
+      const groups=bucketByDate[d]; let dayTotal=0; Object.values(groups).forEach(g=>dayTotal+=g.mins);
+      const weekText=/^\d{4}-\d{2}-\d{2}$/.test(d)?fmtWeekParen(d):'';
+      html.push(`<div class='dateSec'><div class='dateHead'>📅 ${esc(d)}${weekText}${d===t('dateUnk')?` <span class='mini'>${t('dateNote')}</span>`:""}</div>`);
       Object.keys(groups).sort().forEach(k=>{
-        const g=groups[k];
-        const {dup, uniqMap} = makeLines(g.secList);
+        const g=groups[k]; const {dup,uniqMap}=makeLines(g.secList);
         html.push(`<div class='sum'><div><b>${esc(k)}</b></div>`);
-        if(c2Mode==='dup' || c2Mode==='both'){
-          html.push(`<div class='row'>${t('sumDup')}${dup||"<span class=muted>—</span>"}</div>`);
-        }
-        if(c2Mode==='uniq' || c2Mode==='both'){
+        if(c2Mode==='dup'||c2Mode==='both'){ html.push(`<div class='row'>${t('sumDup')}${dup||"<span class=muted>—</span>"}</div>`); }
+        if(c2Mode==='uniq'||c2Mode==='both'){
           if(c2Mode==='both'){ html.push(`<div class='row'>${t('sumUniqHdr')}</div>`); }
-          const keys = Object.keys(uniqMap).sort();
-          if(keys.length===0){
-            html.push(`<div class='row'><span class='muted'>—</span></div>`);
-          }else{
-            keys.forEach(name=>{
-              html.push(`<div class='row'>* ${esc(name)}：${fmt(uniqMap[name])} ${t('minutes')}</div>`);
-            });
-          }
+          const keys=Object.keys(uniqMap).sort();
+          if(keys.length===0){ html.push(`<div class='row'><span class='muted'>—</span></div>`); }
+          else{ keys.forEach(name=>{ html.push(`<div class='row'>* ${esc(name)}：${fmt(uniqMap[name])} ${t('minutes')}</div>`); }); }
         }
         html.push(`<div class='row'><b>${t('total')}</b> ${fmt(g.mins)} ${t('minutes')}</div></div>`);
       });
-
-      html.push(`<div class='dateTotal'><b>${t('dayTotal')}</b> ${fmt(dayTotal)} ${t('minutes')}</div>`);
-      html.push(`</div>`);
+      html.push(`<div class='dateTotal'><b>${t('dayTotal')}</b> ${fmt(dayTotal)} ${t('minutes')}</div></div>`);
     });
   }else{
     html.push(`<div class='dateSec'><div class='dateHead'>📚 ${lang==='zh'?'不分日期（全部合并）':'All combined (no date split)'}</div>`);
-    const groups=allByC1;
-    let allTotal=0; Object.values(groups).forEach(g=>allTotal+=g.mins);
-
+    const groups=allByC1; let allTotal=0; Object.values(groups).forEach(g=>allTotal+=g.mins);
     Object.keys(groups).sort().forEach(k=>{
-      const g=groups[k];
-      const {dup, uniqMap} = makeLines(g.secList);
+      const g=groups[k]; const {dup,uniqMap}=makeLines(g.secList);
       html.push(`<div class='sum'><div><b>${esc(k)}</b></div>`);
-      if(c2Mode==='dup' || c2Mode==='both'){
-        html.push(`<div class='row'>${t('sumDup')}${dup||"<span class=muted>—</span>"}</div>`);
-      }
-      if(c2Mode==='uniq' || c2Mode==='both'){
+      if(c2Mode==='dup'||c2Mode==='both'){ html.push(`<div class='row'>${t('sumDup')}${dup||"<span class=muted>—</span>"}</div>`); }
+      if(c2Mode==='uniq'||c2Mode==='both'){
         if(c2Mode==='both'){ html.push(`<div class='row'>${t('sumUniqHdr')}</div>`); }
-        const keys = Object.keys(uniqMap).sort();
-        if(keys.length===0){
-          html.push(`<div class='row'><span class='muted'>—</span></div>`);
-        }else{
-          keys.forEach(name=>{
-            html.push(`<div class='row'>* ${esc(name)}：${fmt(uniqMap[name])} ${t('minutes')}</div>`);
-          });
-        }
+        const keys=Object.keys(uniqMap).sort();
+        if(keys.length===0){ html.push(`<div class='row'><span class='muted'>—</span></div>`); }
+        else{ keys.forEach(name=>{ html.push(`<div class='row'>* ${esc(name)}：${fmt(uniqMap[name])} ${t('minutes')}</div>`); }); }
       }
       html.push(`<div class='row'><b>${t('total')}</b> ${fmt(g.mins)} ${t('minutes')}</div></div>`);
     });
-    html.push(`<div class='dateTotal'><b>${lang==='zh'?'总体总时间：':'Grand total:'}</b> ${fmt(allTotal)} ${t('minutes')}</div>`);
-    html.push(`</div>`);
+    html.push(`<div class='dateTotal'><b>${lang==='zh'?'总体总时间：':'Grand total:'}</b> ${fmt(allTotal)} ${t('minutes')}</div></div>`);
   }
-
   area.innerHTML = html.join('');
 }
 
-/* ===== 版本：手动(5) + 自动(2) ===== */
+/* ===== 版本存取 ===== */
 function readVersions(){ return getLS(VER_KEY,'[]'); }
 function writeVersions(arr){ setLS(VER_KEY, arr); }
 function makeSnapshot(){
-  const raw = getLS(RAW_KEY,'""');
-  const snap = { ts: nowTs(), raw, labelMap, c1:Array.from(c1Sug), c2:Array.from(c2Sug), cfg };
-  const arr = readVersions(); arr.push(snap); while(arr.length>5) arr.shift(); writeVersions(arr);
+  const raw=getLS(RAW_KEY,'""');
+  const snap={ ts:nowTs(), raw, labelMap, c1:Array.from(c1Sug), c2:Array.from(c2Sug), cfg };
+  const arr=readVersions(); arr.push(snap); while(arr.length>5) arr.shift(); writeVersions(arr);
 }
 function readAutoVersions(){ return getLS(VER_AUTO_KEY,'[]'); }
 function writeAutoVersions(arr){ setLS(VER_AUTO_KEY, arr); }
 let autoTimer=null, lastAutoSig='';
 function currentStateForSig(){ const raw=getLS(RAW_KEY,'""'); return JSON.stringify({raw,labelMap,cfg}); }
 function scheduleAutoSave(reason){
-  const sig = currentStateForSig();
-  if(sig===lastAutoSig) return;
+  const sig=currentStateForSig(); if(sig===lastAutoSig) return;
   clearTimeout(autoTimer);
-  autoTimer = setTimeout(()=>{
-    const raw = getLS(RAW_KEY,'""');
-    const snap = { ts: nowTs(), reason: reason||'', raw, labelMap, c1:Array.from(c1Sug), c2:Array.from(c2Sug), cfg };
-    const arr = readAutoVersions(); arr.push(snap); while(arr.length>2) arr.shift(); writeAutoVersions(arr);
-    lastAutoSig = sig;
-  }, 800);
+  autoTimer=setTimeout(()=>{
+    const raw=getLS(RAW_KEY,'""');
+    const snap={ ts:nowTs(), reason:reason||'', raw, labelMap, c1:Array.from(c1Sug), c2:Array.from(c2Sug), cfg };
+    const arr=readAutoVersions(); arr.push(snap); while(arr.length>2) arr.shift(); writeAutoVersions(arr);
+    lastAutoSig=sig;
+  },800);
 }
-function exportJSON(obj, fname){
-  const blob = new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
+function exportJSON(obj,fname){
+  const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname;
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
-function showHistory(){
-  const box = document.getElementById('histBody');
-  const autos = readAutoVersions();
-  const manual = readVersions();
 
-  const makeCard = (snap, idx, total, scope) => {
-    const rawLines = (snap.raw||'').split(/\r?\n/).length;
-    const labelCnt = Object.keys(snap.labelMap||{}).length;
-    const l1Cnt = new Set(Object.values(snap.labelMap||{}).map(x=>x.c1)).size;
-    const l2Cnt = new Set(Object.values(snap.labelMap||{}).map(x=>x.c2)).size;
-    const title = `${t('histSnap')} #${total-idx} · ${tsFmt(snap.ts)}${snap.reason?(' · '+esc(snap.reason)) : ''}`;
+/* ===== 历史面板 ===== */
+function showHistory(){
+  const box=document.getElementById('histBody');
+  const autos=readAutoVersions(); const manual=readVersions();
+  const makeCard=(snap,idx,total,scope)=>{
+    const rawLines=(snap.raw||'').split(/\r?\n/).length;
+    const labelCnt=Object.keys(snap.labelMap||{}).length;
+    const l1Cnt=new Set(Object.values(snap.labelMap||{}).map(x=>x.c1)).size;
+    const l2Cnt=new Set(Object.values(snap.labelMap||{}).map(x=>x.c2)).size;
+    const title=`${t('histSnap')} #${total-idx} · ${tsFmt(snap.ts)}${snap.reason?(' · '+esc(snap.reason)) : ''}`;
     return `
       <div class="histItem">
         <div class="histHead">
@@ -648,223 +693,322 @@ function showHistory(){
           <button data-act="restore" data-scope="${scope}" data-idx="${idx}">${t('btnRestore')}</button>
           <button class="secondary" data-act="export" data-scope="${scope}" data-idx="${idx}">${t('btnExport')}</button>
         </div>
-      </div>
-    `;
+      </div>`;
   };
-
-  let html = '';
-  html += `<h3>${t('histAutoTitle')}</h3>`;
-  if(autos.length===0){
-    html += `<div class="muted">${lang==='zh'?'暂无自动保存。关键操作后会自动记录最近 2 个版本。':'No auto-saves yet. Key actions will record the last 2 automatically.'}</div>`;
-  }else{
-    html += autos.map((s,i)=>makeCard(s,i,autos.length,'auto')).join('');
-  }
-  html += `<hr class="sep">`;
-  html += `<h3>${t('histManualTitle')}</h3>`;
-  if(manual.length===0){
-    html += `<div class="muted">${t('histEmpty')}</div>`;
-  }else{
-    html += manual.map((s,i)=>makeCard(s,i,manual.length,'manual')).join('');
-  }
-
-  box.innerHTML = html;
-
+  let html='';
+  html+=`<h3>${t('histAutoTitle')}</h3>`;
+  html+=autos.length?autos.map((s,i)=>makeCard(s,i,autos.length,'auto')).join(''):`<div class="muted">${lang==='zh'?'暂无自动保存。关键操作后会自动记录最近 2 个版本。':'No auto-saves yet. Key actions will record the last 2 automatically.'}</div>`;
+  html+=`<hr class="sep"><h3>${t('histManualTitle')}</h3>`;
+  html+=manual.length?manual.map((s,i)=>makeCard(s,i,manual.length,'manual')).join(''):`<div class="muted">${t('histEmpty')}</div>`;
+  box.innerHTML=html;
   box.querySelectorAll('button[data-act]').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      const idx = Number(btn.getAttribute('data-idx'));
-      const scope = btn.getAttribute('data-scope');
-      const arr = scope==='auto' ? readAutoVersions() : readVersions();
-      const snap = arr[idx]; if(!snap) return;
+      const idx=+btn.getAttribute('data-idx'); const scope=btn.getAttribute('data-scope');
+      const arr=scope==='auto'?readAutoVersions():readVersions(); const snap=arr[idx]; if(!snap) return;
       if(btn.getAttribute('data-act')==='export'){
-        exportJSON(snap, `AnnotSnapshot_${scope}_${tsFmt(snap.ts).replace(/[: ]/g,'_')}.json`);
+        exportJSON(snap,`AnnotSnapshot_${scope}_${tsFmt(snap.ts).replace(/[: ]/g,'_')}.json`);
       }else{
-        setLS(RAW_KEY, snap.raw||'');
-        labelMap = snap.labelMap||{};
-        setLS(MAP_KEY, labelMap);
+        setLS(RAW_KEY,snap.raw||'');
+        labelMap=snap.labelMap||{}; setLS(MAP_KEY,labelMap);
         c1Sug.clear(); (snap.c1||[]).forEach(v=>c1Sug.add(v));
         c2Sug.clear(); (snap.c2||[]).forEach(v=>c2Sug.add(v));
-        setLS(SUG1_KEY, Array.from(c1Sug)); setLS(SUG2_KEY, Array.from(c2Sug));
-        cfg = snap.cfg||defaultCfg; saveCfg();
-        updDatalist('dl1', c1Sug); updDatalist('dl2', c2Sug);
+        setLS(SUG1_KEY,Array.from(c1Sug)); setLS(SUG2_KEY,Array.from(c2Sug));
+        cfg=snap.cfg||defaultCfg; saveCfg();
+        updDatalist('dl1',c1Sug); updDatalist('dl2',c2Sug);
         render(getLS(RAW_KEY,'""')); renderSum();
         document.getElementById('histModal').classList.add('hidden');
       }
     });
   });
-
   document.getElementById('histModal').classList.remove('hidden');
 }
 
-/* ===== 粘贴 / 关键词 / 帮助 ===== */
-let appendMode = false;
-function openPaste(mode='replace'){
-  appendMode = (mode==='append');
-  document.getElementById('pasteModal').classList.remove('hidden');
-  const ta=document.getElementById('pasteInput'); ta.value = '';
-  document.getElementById('pasteTitle').textContent = t(appendMode?'pasteTitleAppend':'pasteTitle');
-  setTimeout(()=>ta.focus(),30);
+/* ===== 统计函数 ===== */
+function countEntriesInText(text){
+  const lines=(text||'').replace(/\r\n?/g,'\n').split('\n');
+  let cnt=0; for(const ln of lines){ if(isEntryLine(ln)) cnt++; } return cnt;
 }
-function doParseFromModal(){
-  const newText = document.getElementById('pasteInput').value||'';
-  if(!newText){ document.getElementById('pasteModal').classList.add('hidden'); return; }
-  if(appendMode){
-    const old = getLS(RAW_KEY,'""')||'';
-    const merged = old ? (old.replace(/\s+$/,'') + '\n' + newText) : newText;
-    setLS(RAW_KEY, merged);
-    render(merged);
-    scheduleAutoSave('append');
-  }else{
-    if(Object.keys(labelMap).length>0){
-      if(!confirm(t('confirmReparse'))){ return; }
-      labelMap={}; setLS(MAP_KEY,labelMap); document.getElementById('sumArea').innerHTML='';
-      scheduleAutoSave('reparse_clear_labels');
-    }
-    setLS(RAW_KEY, newText);
-    render(newText);
-    scheduleAutoSave('parse_replace');
+function countEntriesBeforeLine(lines,L){
+  let cnt=0; for(let i=0;i<L;i++){ if(isEntryLine(lines[i])) cnt++; } return cnt;
+}
+
+/* ===== 插入粘贴 ===== */
+function openInsert(){
+  const raw=getLS(RAW_KEY,'""')||''; if(!raw){ alert(t('insNoRaw')); return; }
+  document.getElementById('insTail').value=0;
+  document.getElementById('insText').value='';
+  updateInsertPreview();
+  document.getElementById('insertModal').classList.remove('hidden');
+}
+function updateInsertPreview(){
+  const raw=getLS(RAW_KEY,'""')||''; const lines=raw.split(/\r?\n/);
+  let nTail=Math.max(0, +document.getElementById('insTail').value||0); nTail=Math.min(nTail,lines.length);
+  const slice=nTail>0?lines.slice(-nTail):[];
+  document.getElementById('insPreview').textContent=slice.join('\n');
+  const L=lines.length-nTail;
+  const addText=document.getElementById('insText').value||'';
+  const addLines=addText?addText.replace(/\r\n?/g,'\n').split('\n').length:0;
+  const addEntries=countEntriesInText(addText);
+  const info=t('insInfoTpl').replace('{total}',lines.length).replace('{pos}',L).replace('{addLines}',addLines).replace('{addEntries}',addEntries);
+  document.getElementById('insInfo').textContent=info;
+}
+function doInsert(){
+  const addText=document.getElementById('insText').value||'';
+  const raw=getLS(RAW_KEY,'""')||''; const lines=raw.split(/\r?\n/);
+  let nTail=Math.max(0, +document.getElementById('insTail').value||0); nTail=Math.min(nTail,lines.length);
+  const L=lines.length-nTail;
+
+  const oldEntriesBefore=countEntriesBeforeLine(lines,L);
+  const addEntries=countEntriesInText(addText);
+
+  const left=lines.slice(0,L).join('\n'), right=lines.slice(L).join('\n');
+  const sepL=left&&addText?'\n':''; const sepR=addText&&right?'\n':'';
+  const newRaw=(left||'')+sepL+addText+sepR+(right||'');
+
+  if(addEntries>0){
+    const newMap={};
+    Object.entries(labelMap||{}).forEach(([k,v])=>{
+      const m=/^e(\d+)$/.exec(k); if(!m){ newMap[k]=v; return; }
+      const idx=+m[1]; const newIdx=idx>oldEntriesBefore? idx+addEntries : idx;
+      newMap['e'+newIdx]=v;
+    });
+    labelMap=newMap; saveMap();
   }
-  document.getElementById('pasteModal').classList.add('hidden');
-}
-function openKw(){
-  const m = document.getElementById('kwModal');
-  document.getElementById('kw_blue_tags').value = (cfg.blue.tags||[]).join('\n');
-  document.getElementById('kw_blue_expr').value = cfg.blue.minuteExpr||defaultCfg.blue.minuteExpr;
-  document.getElementById('kw_blue_suffix').value = cfg.blue.suffix||'分钟';
-  document.getElementById('kw_green_words').value = (cfg.green.keywords||[]).join('\n');
-  document.getElementById('kw_green_only_when_no_blue').checked = !!cfg.green.onlyWhenNoBlue;
-  m.classList.remove('hidden');
-}
-function saveKw(){
-  const tags = document.getElementById('kw_blue_tags').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  const expr = document.getElementById('kw_blue_expr').value.trim() || defaultCfg.blue.minuteExpr;
-  const suffix = document.getElementById('kw_blue_suffix').value.trim() || (lang==='zh'?'分钟':'minutes');
-  const greens = document.getElementById('kw_green_words').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  const onlyNoBlue = document.getElementById('kw_green_only_when_no_blue').checked;
-  try{ new RegExp(`(${expr})\\s*${escReg(suffix)}`, 'i'); }catch(e){ alert((lang==='zh'?'分钟表达式不是有效的正则：':'Invalid regex: ')+e.message); return; }
-  cfg = { blue: { tags, minuteExpr: expr, suffix }, green: { keywords: greens, onlyWhenNoBlue: onlyNoBlue } };
-  saveCfg();
-  const raw = getLS(RAW_KEY,'""'); if(raw && raw!=="") render(raw);
-  document.getElementById('kwModal').classList.add('hidden');
-}
-function openHelp(){
-  const ex = [
-    '13:02, Oct 21, 2025；【学习时间】花了10分钟读新文献',
-    '13:15, Oct 21, 2025；【工作时间】花了5+5分钟做PPT',
-    '14:00；和本科生讨论实验刺激问题（未计时）',
-    '15:30, Oct 21, 2025；【学习时间】等效花了3分钟回顾公式'
-  ].join('\n');
-  const stepsZh = `
-1）点"粘贴日志/追加粘贴"→ 粘贴原文 → "解析"。  
-2）左栏点击蓝/疑似行，在右侧填写"一级/二级"并"打标签"。  
-3）点"汇总"，默认按日期去重逐行，底部显示"当日总时间"，日期旁会标注"星期几"。  
-4）点"保存标签"建立手动快照；关键操作后会自动保存最近 2 个版本；"历史"可恢复或导出。  
-5）"定义关键词"可微调蓝/绿命中规则与分钟后缀。`.trim();
-  const stepsEn = `
-1) Click "Paste/Append" → paste text → "Parse".  
-2) Click blue/suspect rows, fill L1/L2 on the right and "Tag".  
-3) Click "Summarize": split-by-date, unique-only, day total; weekday next to date.  
-4) Use "Save Tags" for manual snapshots; key actions auto-save last 2; "History" restores/exports.  
-5) "Define Keywords" to tweak blue/green rules and minute suffix.`.trim();
-  const html = `
-    <p><b>${lang==='zh'?'使用步骤：':'Steps:'}</b></p>
-    <p>${lang==='zh'?stepsZh.replace(/\n/g,'<br>'):stepsEn.replace(/\n/g,'<br>')}</p>
-    <hr class="sep">
-    <p><b>${lang==='zh'?'示例日志：':'Sample log:'}</b></p>
-    <pre style="background:#f7f7f7;border:1px solid #eee;padding:8px;border-radius:8px;white-space:pre-wrap">${esc(ex)}</pre>
-  `;
-  document.getElementById('helpBody').innerHTML = html;
-  document.getElementById('helpModal').classList.remove('hidden');
-}
-function loadSample(){
-  const sample = [
-    '13:02, Oct 21, 2025；【学习时间】花了10分钟读新文献',
-    '13:15, Oct 21, 2025；【工作时间】花了5+5分钟做PPT',
-    '14:00；和本科生讨论实验刺激问题（未计时）',
-    '15:30, Oct 21, 2025；【学习时间】等效花了3分钟回顾公式',
-    '16:10；普通记录一行（无计时）'
-  ].join('\n');
-  setLS(RAW_KEY, sample);
-  labelMap = {}; saveMap();                // ← 清空旧标签，避免示例"串标"
-  render(sample);
-  scheduleAutoSave('load_sample');
-  document.getElementById('helpModal').classList.add('hidden');
+  setLS(RAW_KEY,newRaw); render(newRaw);
+  document.getElementById('curText').textContent=''; document.getElementById('curMeta').textContent='';
+  document.getElementById('tagBtn').disabled=true;
+  scheduleAutoSave('insert_paste');
+  document.getElementById('insertModal').classList.add('hidden');
 }
 
 /* ===== 删除末行 ===== */
 function openDeleteModal(){
-  const raw = getLS(RAW_KEY,'""')||'';
-  const lines = raw.split(/\r?\n/);
-  if(!raw || lines.length===0){ alert(t('delNone')); return; }
-  document.getElementById('delInfo').textContent = t('delInfo').replace('{n}', lines.length);
-  const inp = document.getElementById('delCount');
-  if(!inp.value || Number(inp.value)<1) inp.value = 1;
+  const raw=getLS(RAW_KEY,'""')||''; const lines=raw.split(/\r?\n/);
+  if(!raw||lines.length===0){ alert(t('delNone')); return; }
+  document.getElementById('delInfo').textContent=t('delInfo').replace('{n}',lines.length);
+  const inp=document.getElementById('delCount'); if(!inp.value || +inp.value<1) inp.value=1;
   updateDelPreview();
   document.getElementById('delModal').classList.remove('hidden');
 }
 function updateDelPreview(){
-  const raw = getLS(RAW_KEY,'""')||'';
-  const lines = raw.split(/\r?\n/);
-  let n = Math.max(1, Number(document.getElementById('delCount').value||1));
-  n = Math.min(n, lines.length);
-  const slice = lines.slice(-n);
-  document.getElementById('delPreview').textContent = slice.join('\n');
+  const raw=getLS(RAW_KEY,'""')||''; const lines=raw.split(/\r?\n/);
+  let n=Math.max(1, +document.getElementById('delCount').value||1); n=Math.min(n,lines.length);
+  document.getElementById('delPreview').textContent=lines.slice(-n).join('\n');
 }
 function doDeleteTail(){
-  const raw = getLS(RAW_KEY,'""')||'';
-  let lines = raw.split(/\r?\n/);
+  const raw=getLS(RAW_KEY,'""')||''; let lines=raw.split(/\r?\n/);
   if(lines.length===0){ document.getElementById('delModal').classList.add('hidden'); return; }
-  let n = Math.max(1, Number(document.getElementById('delCount').value||1));
-  n = Math.min(n, lines.length);
-  if(!confirm(t('delConfirm').replace('{n}', n))) return;
-  lines = lines.slice(0, lines.length - n);
-  const newRaw = lines.join('\n');
-  setLS(RAW_KEY, newRaw);
-  render(newRaw);
-  pruneLabelMapToCurrentEntries();           // ← 新增：删除后清理孤儿标签
-  document.getElementById('curText').textContent = '';   // 可选：清空右侧"当前条目/元信息"
-  document.getElementById('curMeta').textContent = '';
-  document.getElementById('tagBtn').disabled = true;
+  let n=Math.max(1, +document.getElementById('delCount').value||1); n=Math.min(n,lines.length);
+  if(!confirm(t('delConfirm').replace('{n}',n))) return;
+  lines=lines.slice(0,lines.length-n);
+  const newRaw=lines.join('\n'); setLS(RAW_KEY,newRaw); render(newRaw);
+  pruneLabelMapToCurrentEntries();
+  document.getElementById('curText').textContent=''; document.getElementById('curMeta').textContent='';
+  document.getElementById('tagBtn').disabled=true;
   scheduleAutoSave('delete_last_'+n);
   document.getElementById('delModal').classList.add('hidden');
 }
-
 function pruneLabelMapToCurrentEntries(){
-  // 收集当前 DOM 中仍然存在的条目 id
-  const liveIds = new Set(Array.from(document.querySelectorAll('.entry')).map(el => el.dataset.id));
-  let removed = 0;
-  Object.keys(labelMap).forEach(k=>{
-    if(!liveIds.has(k)){ delete labelMap[k]; removed++; }
-  });
-  if(removed){
-    saveMap();                 // 持久化清理后的 labelMap
-    scheduleAutoSave('prune_labels_'+removed); // 进入自动快照，便于回滚
+  const live=new Set(Array.from(document.querySelectorAll('.entry')).map(el=>el.dataset.id));
+  let removed=0; Object.keys(labelMap).forEach(k=>{ if(!live.has(k)){ delete labelMap[k]; removed++; } });
+  if(removed){ saveMap(); scheduleAutoSave('prune_labels_'+removed); }
+}
+
+/* ===== 导入 / 导出 ===== */
+function doExport(){
+  const obj={ ts:nowTs(), raw:getLS(RAW_KEY,'""')||'', labelMap, c1:Array.from(c1Sug), c2:Array.from(c2Sug), cfg };
+  exportJSON(obj, `DanmuTag_${tsFmt(obj.ts).replace(/[: ]/g,'_')}.json`);
+}
+function doImportFile(){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='.json,application/json';
+  inp.onchange=()=>{
+    const f=inp.files&&inp.files[0]; if(!f) return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const obj=JSON.parse(reader.result);
+        const raw=obj.raw||'';
+        setLS(RAW_KEY,raw);
+        labelMap=obj.labelMap||{}; saveMap();
+        c1Sug.clear(); (obj.c1||[]).forEach(v=>c1Sug.add(v));
+        c2Sug.clear(); (obj.c2||[]).forEach(v=>c2Sug.add(v));
+        setLS(SUG1_KEY,Array.from(c1Sug)); setLS(SUG2_KEY,Array.from(c2Sug));
+        cfg=obj.cfg?Object.assign({},defaultCfg,obj.cfg):cfg; saveCfg();
+        updDatalist('dl1',c1Sug); updDatalist('dl2',c2Sug);
+        render(raw); renderSum();
+        scheduleAutoSave('import');
+      }catch(e){ alert('Invalid JSON'); }
+    };
+    reader.readAsText(f);
+  };
+  inp.click();
+}
+
+/* ===== 关键词 / 帮助 ===== */
+function openKw(){
+  const m=document.getElementById('kwModal');
+  document.getElementById('kw_blue_tags').value=(cfg.blue.tags||[]).join('\n');
+  document.getElementById('kw_blue_expr').value=cfg.blue.minuteExpr||defaultCfg.blue.minuteExpr;
+  document.getElementById('kw_blue_suffix').value=cfg.blue.suffix||'分钟';
+  document.getElementById('kw_green_words').value=(cfg.green.keywords||[]).join('\n');
+  document.getElementById('kw_green_only_when_no_blue').checked=!!cfg.green.onlyWhenNoBlue;
+  m.classList.remove('hidden');
+}
+function saveKw(){
+  const tags=document.getElementById('kw_blue_tags').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const expr=document.getElementById('kw_blue_expr').value.trim()||defaultCfg.blue.minuteExpr;
+  const suffix=document.getElementById('kw_blue_suffix').value.trim()||(lang==='zh'?'分钟':'minutes');
+  const greens=document.getElementById('kw_green_words').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const onlyNoBlue=document.getElementById('kw_green_only_when_no_blue').checked;
+  try{ new RegExp(`(${expr})\\s*${escReg(suffix)}`,'i'); }catch(e){ alert((lang==='zh'?'分钟表达式不是有效的正则：':'Invalid regex: ')+e.message); return; }
+  cfg={ blue:{tags,minuteExpr:expr,suffix}, green:{keywords:greens,onlyWhenNoBlue} };
+  saveCfg(); const raw=getLS(RAW_KEY,'""'); if(raw&&raw!=="") render(raw);
+  document.getElementById('kwModal').classList.add('hidden');
+}
+function openHelp(){
+  const ex=['13:02, Oct 21, 2025；【学习时间】花了10分钟读新文献','13:15, Oct 21, 2025；【工作时间】花了5+5分钟做PPT','14:00；和本科生讨论实验刺激问题（未计时）','15:30, Oct 21, 2025；【学习时间】等效花了3分钟回顾公式'].join('\n');
+  const stepsZh=`1）点"粘贴/追加/插入"→ 粘贴原文 → "解析/插入"。  
+2）左栏点击蓝/疑似行，在右侧填写"一级/二级"并"打标签"。  
+3）点"汇总"，默认按日期去重逐行，底部显示"当日总时间"，日期旁标注星期。  
+4）"保存标签"建立手动快照；关键操作自动保存最近 2 个版本；"历史"可恢复/导出。  
+5）"定义关键词"可微调蓝/绿命中规则与分钟后缀；"导入JSON/导出JSON"可备份/迁移。`.trim();
+  const stepsEn=`1) "Paste/Append/Insert" → paste text → "Parse/Insert".  
+2) Click blue/suspect rows, fill L1/L2 on the right and "Tag".  
+3) "Summarize": split-by-date, unique-only, day total, weekday next to date.  
+4) "Save Tags" takes snapshots; key actions auto-save last 2; "History" restores/exports.  
+5) Tune rules in "Define Keywords"; use "Import JSON/Export" to backup/migrate.`.trim();
+  const html=`<p><b>${lang==='zh'?'使用步骤：':'Steps:'}</b></p><p>${(lang==='zh'?stepsZh:stepsEn).replace(/\n/g,'<br>')}</p><hr class="sep"><p><b>${lang==='zh'?'示例日志：':'Sample log:'}</b></p><pre style="background:#f7f7f7;border:1px solid #eee;padding:8px;border-radius:8px;white-space:pre-wrap">${esc(ex)}</pre>`;
+  document.getElementById('helpBody').innerHTML=html;
+  document.getElementById('helpModal').classList.remove('hidden');
+}
+function loadSample(){
+  const sample=['13:02, Oct 21, 2025；【学习时间】花了10分钟读新文献','13:15, Oct 21, 2025；【工作时间】花了5+5分钟做PPT','14:00；和本科生讨论实验刺激问题（未计时）','15:30, Oct 21, 2025；【学习时间】等效花了3分钟回顾公式','16:10；普通记录一行（无计时）'].join('\n');
+  setLS(RAW_KEY,sample); render(sample); scheduleAutoSave('load_sample'); document.getElementById('helpModal').classList.add('hidden');
+}
+
+/* ===== 修改指定行 ===== */
+function openEditModal(){
+  const raw=getLS(RAW_KEY,'""')||''; if(!raw){ alert(t('insNoRaw')); return; }
+  const lines=raw.split(/\r?\n/);
+  const inp=document.getElementById('editLine');
+  inp.min=1; inp.max=Math.max(1,lines.length); inp.value=String(lines.length); // 默认选中最后一行
+  document.getElementById('editArea').value=lines[lines.length-1]||'';
+  updateEditPreview();
+  document.getElementById('editModal').classList.remove('hidden');
+}
+function updateEditPreview(){
+  const raw=getLS(RAW_KEY,'""')||''; const lines=raw.split(/\r?\n/);
+  let L=Math.max(1, Math.min(lines.length, +document.getElementById('editLine').value||1));
+  const head=`${t('editLineNum')} ${L} / ${lines.length}`;
+  document.getElementById('editInfo').textContent=head;
+  const tail=lines.slice(L-1); if(tail.length){ tail[0]='▶ '+tail[0]; }
+  document.getElementById('editPreview').textContent=tail.join('\n');
+  document.getElementById('editArea').value=lines[L-1]||'';
+}
+function applyEdit(){
+  const raw=getLS(RAW_KEY,'""')||''; const lines=raw.split(/\r?\n/);
+  let L=Math.max(1, Math.min(lines.length, +document.getElementById('editLine').value||1));
+  const oldLine=lines[L-1]||'';
+  const newText=(document.getElementById('editArea').value||'').replace(/\r\n?/g,'\n');
+
+  // 计算 entry 变化
+  const entriesBefore=countEntriesBeforeLine(lines, L-1);
+  const oldEntries=countEntriesInText(oldLine); // 0 或 1
+  const newEntries=countEntriesInText(newText); // 可为 0/1/多
+
+  // 组装新 raw
+  const left=lines.slice(0,L-1).join('\n');
+  const right=lines.slice(L).join('\n');
+  const newRaw = (left?left+'\n':'') + newText + (right?('\n'+right):'');
+
+  // 更新标签映射
+  const threshold = entriesBefore + oldEntries; // 该行之后的首个“后续”条目索引阈值
+  const delta = newEntries - oldEntries;
+  const newMap={};
+
+  // 1) 保留/删除：该行自身的标签（仅当原本是 1 个条目）
+  if(oldEntries===1){
+    const idOld='e'+(entriesBefore+1);
+    const rec=labelMap[idOld];
+    if(rec){
+      if(newEntries>=1){
+        // 仍然在该位置保留一个条目：标签留在 e(entriesBefore+1)
+        newMap['e'+(entriesBefore+1)] = rec;
+      } // newEntries==0 则丢弃该标签（该行已不再是条目）
+    }
   }
+
+  // 2) 平移“阈值之后”的所有标签
+  Object.entries(labelMap).forEach(([k,v])=>{
+    const m=/^e(\d+)$/.exec(k);
+    if(!m){ newMap[k]=v; return; }
+    const idx=+m[1];
+
+    // 跳过已在步骤1处理中涉及的“该行自身的旧标签”
+    if(oldEntries===1 && idx === (entriesBefore+1)) return;
+
+    if(idx > threshold){
+      const to = idx + delta;
+      newMap['e'+to] = v;
+    }else{
+      newMap['e'+idx] = v;
+    }
+  });
+
+  labelMap=newMap; saveMap();
+  setLS(RAW_KEY,newRaw);
+  render(newRaw); renderSum();
+  scheduleAutoSave('edit_line');
+  document.getElementById('editModal').classList.add('hidden');
 }
 
 /* ===== 事件绑定 ===== */
 function updDatalist(id,set){ const dl=document.getElementById(id); dl.innerHTML=''; Array.from(set).sort().forEach(v=>{ const o=document.createElement('option'); o.value=v; dl.appendChild(o); }); }
 
+let appendMode=false;
 document.addEventListener('DOMContentLoaded',()=>{
-  applyI18n();
-  lastAutoSig = currentStateForSig();
+  applyI18n(); lastAutoSig=currentStateForSig();
+  updDatalist('dl1',c1Sug); updDatalist('dl2',c2Sug);
 
-  updDatalist('dl1', c1Sug); updDatalist('dl2', c2Sug);
-
-  document.getElementById('pasteBtn').addEventListener('click', ()=>openPaste('replace'));
-  document.getElementById('appendBtn').addEventListener('click', ()=>openPaste('append'));
+  // 粘贴 / 追加
+  document.getElementById('pasteBtn').addEventListener('click', ()=>{ appendMode=false; document.getElementById('pasteTitle').textContent=t('pasteTitle'); document.getElementById('pasteInput').value=''; document.getElementById('pasteModal').classList.remove('hidden'); });
+  document.getElementById('appendBtn').addEventListener('click', ()=>{ appendMode=true; document.getElementById('pasteTitle').textContent=t('pasteTitleAppend'); document.getElementById('pasteInput').value=''; document.getElementById('pasteModal').classList.remove('hidden'); });
   document.getElementById('cancelPaste').addEventListener('click',()=>document.getElementById('pasteModal').classList.add('hidden'));
-  document.getElementById('parseBtn').addEventListener('click', doParseFromModal);
+  document.getElementById('parseBtn').addEventListener('click',()=>{
+    const newText=document.getElementById('pasteInput').value||'';
+    if(!newText){ document.getElementById('pasteModal').classList.add('hidden'); return; }
+    if(appendMode){
+      const old=getLS(RAW_KEY,'""')||'';
+      const merged=old?(old.replace(/\s+$/,'')+'\n'+newText):newText;
+      setLS(RAW_KEY,merged); render(merged); scheduleAutoSave('append');
+    }else{
+      if(Object.keys(labelMap).length>0){
+        if(!confirm(t('confirmReparse'))){ return; }
+        labelMap={}; setLS(MAP_KEY,labelMap); document.getElementById('sumArea').innerHTML='';
+        scheduleAutoSave('reparse_clear_labels');
+      }
+      setLS(RAW_KEY,newText); render(newText); scheduleAutoSave('parse_replace');
+    }
+    document.getElementById('pasteModal').classList.add('hidden');
+  });
 
+  // 插入粘贴
+  document.getElementById('insertBtn').addEventListener('click', openInsert);
+  document.getElementById('insCancel').addEventListener('click',()=>document.getElementById('insertModal').classList.add('hidden'));
+  document.getElementById('insTail').addEventListener('input', updateInsertPreview);
+  document.getElementById('insText').addEventListener('input', updateInsertPreview);
+  document.getElementById('insDo').addEventListener('click', doInsert);
+
+  // 重新解析
   document.getElementById('reparseBtn').addEventListener('click',()=>{
-    const raw = getLS(RAW_KEY,'""');
-    if(!raw || raw===""){ openPaste('replace'); return; }
+    const raw=getLS(RAW_KEY,'""');
+    if(!raw||raw===""){ document.getElementById('pasteInput').value=''; appendMode=false; document.getElementById('pasteTitle').textContent=t('pasteTitle'); document.getElementById('pasteModal').classList.remove('hidden'); return; }
     if(Object.keys(labelMap).length>0){
       if(!confirm(t('confirmReparse'))) return;
       labelMap={}; setLS(MAP_KEY,labelMap); document.getElementById('sumArea').innerHTML='';
       scheduleAutoSave('reparse_clear_labels');
     }
-    render(raw);
-    scheduleAutoSave('reparse_render');
+    render(raw); scheduleAutoSave('reparse_render');
   });
 
   // 删除末行
@@ -878,7 +1022,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('kwCancel').addEventListener('click',()=>document.getElementById('kwModal').classList.add('hidden'));
   document.getElementById('kwReset').addEventListener('click',()=>{
     if(!confirm(lang==='zh'?'恢复到默认关键词与分钟表达式？':'Reset to default keywords and pattern?')) return;
-    cfg = JSON.parse(JSON.stringify(defaultCfg)); saveCfg(); openKw();
+    cfg=JSON.parse(JSON.stringify(defaultCfg)); saveCfg(); openKw();
   });
   document.getElementById('kwSave').addEventListener('click', saveKw);
 
@@ -886,28 +1030,22 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('helpBtn').addEventListener('click', openHelp);
   document.getElementById('closeHelp').addEventListener('click', ()=>document.getElementById('helpModal').classList.add('hidden'));
   document.getElementById('loadSample').addEventListener('click', loadSample);
-  document.getElementById('langBtn').addEventListener('click', ()=>{ lang=(lang==='zh'?'en':'zh'); localStorage.setItem(LANG_KEY, lang); applyI18n(); render(getLS(RAW_KEY,'""')); renderSum(); });
+  document.getElementById('langBtn').addEventListener('click', ()=>{ lang=(lang==='zh'?'en':'zh'); localStorage.setItem(LANG_KEY,lang); applyI18n(); render(getLS(RAW_KEY,'""')); renderSum(); });
 
   // 打标签
   document.getElementById('tagBtn').addEventListener('click',()=>{
-    const current = document.querySelector('.entry.selected'); if(!current) return;
+    const current=document.querySelector('.entry.selected'); if(!current) return;
     const id=current.dataset.id;
-    const c1 = document.getElementById('c1').value.trim();
-    const c2 = document.getElementById('c2').value.trim();
-    const over = document.getElementById('overMin').value.trim();
-    if(!c1 || !c2){ alert(t('alertNeedTitles')); return; }
+    const c1=document.getElementById('c1').value.trim();
+    const c2=document.getElementById('c2').value.trim();
+    const over=document.getElementById('overMin').value.trim();
+    if(!c1||!c2){ alert(t('alertNeedTitles')); return; }
     if(over && isNaN(parseFloat(over))){ alert(t('alertOverNum')); return; }
-
-    c1Sug.add(c1); c2Sug.add(c2);
-    updDatalist('dl1', c1Sug); updDatalist('dl2', c2Sug);
-    setLS(SUG1_KEY, Array.from(c1Sug)); setLS(SUG2_KEY, Array.from(c2Sug));
-
-    labelMap[id] = { c1, c2, overMin: over?parseFloat(over):null };
-    saveMap();
-
-    let tag = current.querySelector('.badge');
-    if(!tag){ tag=document.createElement('span'); tag.className='badge'; current.appendChild(tag); }
-    tag.textContent = c1+' / '+c2 + (over?(' · '+over+'m'):'');
+    c1Sug.add(c1); c2Sug.add(c2); updDatalist('dl1',c1Sug); updDatalist('dl2',c2Sug);
+    setLS(SUG1_KEY,Array.from(c1Sug)); setLS(SUG2_KEY,Array.from(c2Sug));
+    labelMap[id]={ c1, c2, overMin:over?parseFloat(over):null }; saveMap();
+    let tag=current.querySelector('.badge'); if(!tag){ tag=document.createElement('span'); tag.className='badge'; current.appendChild(tag); }
+    tag.textContent=c1+' / '+c2+(over?(' · '+over+'m'):'');
     scheduleAutoSave('tag');
   });
 
@@ -930,7 +1068,17 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('histBtn').addEventListener('click', showHistory);
   document.getElementById('closeHist').addEventListener('click', ()=>document.getElementById('histModal').classList.add('hidden'));
 
+  // 导入 / 导出
+  document.getElementById('exportBtn').addEventListener('click', doExport);
+  document.getElementById('importBtn').addEventListener('click', doImportFile);
+
+  // 修改指定行
+  document.getElementById('editBtn').addEventListener('click', openEditModal);
+  document.getElementById('editCancel').addEventListener('click', ()=>document.getElementById('editModal').classList.add('hidden'));
+  document.getElementById('editLine').addEventListener('input', updateEditPreview);
+  document.getElementById('editApply').addEventListener('click', applyEdit);
+
   // 初始渲染
-  const raw = getLS(RAW_KEY,'""'); if(raw && raw!=="") render(raw);
+  const raw=getLS(RAW_KEY,'""'); if(raw&&raw!=="") render(raw);
 });
 </script>
