@@ -30,8 +30,8 @@
 ---
 
 ## 🚀 快速开始 / Quick Start
-1. 用浏览器直接打开本 HTML 文件。  
-   *Open the HTML file in your browser.*
+1. 用浏览器直接打开 `LogAnalyzerV5.html`。<br>
+   *Open `LogAnalyzerV5.html` in your browser.*
 2. 点击“粘贴日志”或“追加粘贴”→ 粘贴你的弹幕式日志 → “解析”。  
    *Click “Paste” or “Append” → paste your log → “Parse”.*
 3. 左栏点击蓝/疑似条目，在右侧填写“一级/二级”→ “打标签”。  
@@ -113,8 +113,8 @@ annot_versions_auto
 ---
 
 ## 🧭 兼容性 / Compatibility
-推荐最新 Chrome / Edge / Firefox / Safari；移动端可用，但桌面体验更佳。  
-*Latest Chrome/Edge/Firefox/Safari recommended; mobile works, desktop is better.*
+建议使用现代桌面浏览器；Chrome / Edge / Firefox / Safari 和移动端兼容性尚无自动化测试或记录的逐平台验证。<br>
+*Use a modern desktop browser. Chrome/Edge/Firefox/Safari and mobile compatibility have not been validated by automated tests or recorded per-platform checks.*
 
 ---
 
